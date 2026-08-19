@@ -1,0 +1,4 @@
+torch>=2.0
+numpy
+pyyaml
+deepmd-kit[torch]>=3.0.0

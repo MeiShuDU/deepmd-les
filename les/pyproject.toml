@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "les"
+version = "0.1.0"
+description = "Latent Ewald Summation library with DeePMD model"
+dependencies = [
+	"torch >= 2.0",
+	"numpy",
+	"pyyaml",
+	"deepmd-kit[torch]>=3.0.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["les*", "les_plugin*"]
+
+[tool.setuptools.package-data]
+les = ['py.typed']
+
+#[project.entry-points."deepmd.pt"]
+#hybrid_les = "les_plugin:HybridLESModel"
+#some_atomic_model = "les_plugin:SomeAtomicModel"
