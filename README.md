@@ -6,12 +6,12 @@ This repository provides a custom build of **DeepMD-kit v3.1.2** integrated with
 
 - **DeepMD-kit** is developed and maintained by the DeepModeling community.  
   Official repository: [https://github.com/deepmodeling/deepmd-kit](https://github.com/deepmodeling/deepmd-kit)  
-  This work is based on the official v3.1.2 release[reference:0].
+  This work is based on the official v3.1.2 release.
 
 - **LES (Latent Ewald Summation)** is a plug-in library developed by the Cheng Group (UC Berkeley) for adding long-range interactions to short-ranged MLIPs.  
-  Official repository: [https://github.com/ChengUCB/les](https://github.com/ChengUCB/les)[reference:1][reference:2]  
+  Official repository: [https://github.com/ChengUCB/les](https://github.com/ChengUCB/les)  
   The method is described in:  
-  Cheng, Bingqing. "Latent Ewald Summation for Machine Learning of Long-Range Interactions." *npj Computational Materials*, vol. 11, 80, Springer Nature, 2025. doi:10.1038/s41524-025-01577-7[reference:3][reference:4].
+  Cheng, Bingqing. "Latent Ewald Summation for Machine Learning of Long-Range Interactions." *npj Computational Materials*, vol. 11, 80, Springer Nature, 2025. doi:10.1038/s41524-025-01577-7.
 
 ## Features
 
