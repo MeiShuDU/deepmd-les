@@ -112,7 +112,7 @@ Create a DeepMD input file (e.g., `input.json`) with the following model section
 Then train with:
 
 ```bash
-dp --pt train input.yaml
+dp --pt train input.json
 ```
 
 ## A Note on Repository Management
