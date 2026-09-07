@@ -36,6 +36,7 @@ class HybridLESModel(DPModelCommon, HybridLESModel_):
         DPModelCommon.__init__(self)
         # 保存描述符实例以供 forward 重新计算描述符
         self.descriptor = descriptor
+        self.type_map = type_map
 
     def forward(
         self,
@@ -78,6 +79,9 @@ class HybridLESModel(DPModelCommon, HybridLESModel_):
             desc_i = desc[i]     # [nloc, dim]
             cell_i = box[i].reshape(3, 3).unsqueeze(0) if box is not None else None
 
+            atomic_types = [self.type_map[at] for at in atype[i]]
+            if atomic_types is None: raise TypeError(f'atomic_types derived from {atype[i]} and {self.type_map}')
+
             # 调用 LES 模型（已保存在 atomic_model 中）
             les_out = self.atomic_model.les_model(
                 positions=coord_i,
@@ -85,6 +89,7 @@ class HybridLESModel(DPModelCommon, HybridLESModel_):
                 desc=desc_i,
                 batch=None,
                 compute_energy=True,
+                atomic_types=atomic_types
             )
             E_lr = les_out['E_lr']  # 标量
             # 计算力

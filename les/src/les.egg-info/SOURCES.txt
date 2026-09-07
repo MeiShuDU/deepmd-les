@@ -15,6 +15,7 @@ src/les/module/blocks.py
 src/les/module/ewald.py
 src/les/module/fixedcharges.py
 src/les/module/make_kernels.py
+src/les/module/type2number.py
 src/les/tests/test_bec.py
 src/les/util/__init__.py
 src/les/util/grad.py

@@ -2,12 +2,21 @@ import torch
 from torch import nn
 from typing import Dict, Any, Union, Optional
 
+import logging
+logging.basicConfig(
+    filename='les.log',
+    level=logging.INFO,
+    filemode='w'
+)
+logger = logging.getLogger(__name__)
+
 from .module import (
     Atomwise,
     Ewald,
     BEC,
     FixedCharges,
     AtomicAlpha,
+    type2number,
 )
 
 __all__ = ['Les']
@@ -79,6 +88,11 @@ class Les(nn.Module):
         self.use_atomic_alpha = les_arguments.get('use_atomic_alpha', False)
         self.use_epsilon_r_scaling = les_arguments.get('use_epsilon_r_scaling', False)
 
+        self.verbose = les_arguments.get('verbose', False)
+        if self.verbose: 
+            self._log_step_counter = 0
+            self.log_freq = les_arguments.get('log_freq', 100)
+
     def __setstate__(self, state: Dict[str, Any]):
         # Backward compatibility: models serialized before these feature flags
         # existed lack the corresponding attributes. forward() and __constants__
@@ -105,6 +119,7 @@ class Les(nn.Module):
                latent_kappas: Optional[torch.Tensor] = None, # [n_atoms, ]
                latent_alphas: Optional[torch.Tensor] = None, # [n_atoms, ]
                atomic_numbers: Optional[torch.Tensor] = None, # [n_atoms, ]
+               atomic_types: Optional[list] = None,
                batch: Optional[torch.Tensor] = None,
                compute_energy: bool = True,
                compute_field: bool = False,
@@ -140,8 +155,12 @@ class Les(nn.Module):
         else:
             raise ValueError("Either desc or latent_charges must be provided")
 
+        if atomic_types is not None:
+            atomic_numbers = type2number.type2num(atomic_types)
+
         if atomic_numbers is not None and self.use_fixed_atomic_charges:
-            latent_charges = latent_charges + self.fixed_charges(atomic_numbers)
+            device = latent_charges.device
+            latent_charges = latent_charges + self.fixed_charges(atomic_numbers).to(device=device).unsqueeze(-1)
 
         if atomic_numbers is not None and self.use_atomic_alpha and latent_alphas is not None:
             baseline_alphas = self.atomic_alpha(atomic_numbers)
@@ -191,6 +210,25 @@ class Les(nn.Module):
 		           )
         else:
             bec = None
+
+        if self.verbose:
+            self._log_step_counter += 1
+            if self._log_step_counter % self.log_freq == 0 or self._log_step_counter == 1:
+                logger.info(f'Training steps :{self._log_step_counter}')
+                if latent_charges is not None:
+                    logger.info(f"latent_charges mean: {latent_charges.mean().item()}, std: {latent_charges.std().item()}")
+                    logger.info(f"\tQ_MEAN\tQ_STD")
+                    if atomic_numbers is None: raise TypeError(f'atomic_numbers derived from {atomic_types} is None')
+                    for am in torch.unique(atomic_numbers):
+                        mask = (atomic_numbers == am)
+                        q_am = latent_charges[mask]
+                        mean_q = q_am.mean(dim=0)
+                        std_q = q_am.std(dim=0)
+                        logger.info(f"{am}\t{mean_q}\t{std_q}")
+                if compute_energy:
+                    logger.info(f"E_lr = {E_lr.item() if E_lr.numel()==1 else E_lr}")
+            if self._log_step_counter % 1000 == 0 or self._log_step_counter == 1:
+                logger.info(f)
 
         output = {
             'E_lr': E_lr,
