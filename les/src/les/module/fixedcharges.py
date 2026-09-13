@@ -131,9 +131,18 @@ class FixedCharges(nn.Module):
                  normalization_factor: float = 0.5,
                  ):
         super().__init__()
-        self.charge_dict = charge_dict
         self.normalization_factor = normalization_factor
+        # 查找表: 旧实现用 Python dict + 逐元素 .item() 取值, 无法被
+        # torch.jit.script。这里在 __init__ 中把 dict 固化为按原子序数索引的
+        # 定长张量, forward 中直接张量索引, 既 scriptable 也更快。
+        # persistent=False: 该表由 charge_dict 完全决定, 不进 state_dict, 因此
+        # 不改变既有 ckpt 的键集合 (旧 ckpt 仍可严格加载)。
+        table = torch.zeros(max(charge_dict) + 1, dtype=torch.float64)
+        for z, c in charge_dict.items():
+            table[z] = float(c)
+        self.register_buffer("charge_table", table, persistent=False)
 
     def forward(self, atomic_numbers: torch.Tensor) -> torch.Tensor:
-        charge = torch.tensor([self.charge_dict[atomic_number.item()] for atomic_number in atomic_numbers], device=atomic_numbers.device)
+        charge = self.charge_table[atomic_numbers.long()]
         return charge * self.normalization_factor
+
