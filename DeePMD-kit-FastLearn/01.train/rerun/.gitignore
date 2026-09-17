@@ -1,0 +1,4 @@
+# Trained checkpoints are derived artifacts: what these runs produced is kept
+# as the *.tsv metrics, the logs and LES_analysis.ipynb. Ignoring them here
+# keeps 75 files of about 26 MB each, 1.5 GB in total, out of the repository.
+model.ckpt*.pt
