@@ -1,12 +1,12 @@
 import torch
 from torch import nn
-from typing import Dict, Any, Union, Optional
+from typing import Dict, Any, Union, Optional, List
 
 import logging
 logging.basicConfig(
     filename='les.log',
     level=logging.INFO,
-    filemode='w'
+    filemode='a',  # append: 保留多轮训练的历史日志, 便于追溯对比
 )
 logger = logging.getLogger(__name__)
 
@@ -26,7 +26,18 @@ class Les(nn.Module):
     __constants__ = ['use_fixed_atomic_charges', 'use_atomic_alpha', 'use_atomwise', 'use_epsilon_r_scaling']
     def __init__(self, les_arguments: Union[Dict[str, Any], str] = {}):
         """
-        LES model for long-range interations
+        LES model for long-range interactions
+
+        脚本化 (torch.jit.script / dp freeze) 约定:
+        - ``compute_energy=True`` 的数值主路径全部由可脚本化算子构成
+          (Ewald 已写成 cos/sin 实值形式, 无复数 autograd);
+        - 记录/调试分支 (verbose 日志、BEC、atomic_types->type2num 查表) 只在
+          eager 下生效, 调用点用 ``if torch.jit.is_scripting(): pass else: ...``
+          包住, 且逻辑本体放在 ``@torch.jit.unused`` 方法里 (含 f-string / dict 查表 /
+          复数投影等纯 Python 片段的代码不会被编译进计算图); 冻结链路运行时永不进入
+          else 分支;
+        - FixedCharges/AtomicAlpha 的逐元素查表改为非持久 buffer 张量索引。
+        eager 训练路径的行为不变。
         """
         super().__init__()
 
@@ -39,8 +50,12 @@ class Les(nn.Module):
 
         self._parse_arguments(les_arguments)
 
-        self.atomwise: nn.Module = (
+        # 注意: 模块属性不能标注泛型 nn.Module (TorchScript 只接受具体模块类型)。
+        # 运行时该属性是 Atomwise 或 _DummyAtomwise 的具体实例, 脚本化时按实际
+        # 类型推断。hybrid_ener 恒定 use_atomwise=True。
+        self.atomwise = (
             Atomwise(
+                n_in=self.dim_descrpt,
                 n_layers=self.n_layers,
                 n_hidden=self.n_hidden,
                 add_linear_nn=self.add_linear_nn,
@@ -71,6 +86,7 @@ class Les(nn.Module):
         """
         Parse arguments for LES model
         """
+        self.dim_descrpt = les_arguments.get('dim_descrpt', None)
         self.n_layers = les_arguments.get('n_layers', 3)
         self.n_hidden = les_arguments.get('n_hidden', [32, 16])
         self.add_linear_nn = les_arguments.get('add_linear_nn', True)
@@ -89,7 +105,7 @@ class Les(nn.Module):
         self.use_epsilon_r_scaling = les_arguments.get('use_epsilon_r_scaling', False)
 
         self.verbose = les_arguments.get('verbose', False)
-        if self.verbose: 
+        if self.verbose:
             self._log_step_counter = 0
             self.log_freq = les_arguments.get('log_freq', 100)
 
@@ -108,9 +124,57 @@ class Les(nn.Module):
             state.setdefault(key, default)
         super().__setstate__(state)
 
+    @torch.jit.unused
+    def _atomic_numbers_from_types(self, atomic_types: list) -> torch.Tensor:
+        # pure Python dict 查表 (type2number), 只在 eager 下被调用。
+        # dp freeze 链路应直接传 atomic_numbers (int64 张量)。
+        return type2number.type2num(atomic_types)
+
+    @torch.jit.unused
+    def _log_verbose_stats(self,
+                           latent_charges: Optional[torch.Tensor],
+                           atomic_numbers: Optional[torch.Tensor],
+                           E_lr: Optional[torch.Tensor],
+                           compute_energy: bool,
+                           ) -> None:
+        # 日志/调试分支: 含 f-string 格式、逐元素统计、E_lr.grad_fn 等纯 Python
+        # 片段, 由 @torch.jit.unused 隔离, 不进入冻结模型的计算图。
+        if not self.verbose:
+            return
+        self._log_step_counter += 1
+        if self._log_step_counter % self.log_freq == 0 or self._log_step_counter == 1:
+            logger.info(f'Training steps :{self._log_step_counter}')
+            if latent_charges is not None:
+                logger.info(f"latent_charges mean: {latent_charges.mean().item()}, std: {latent_charges.std().item()}")
+                if atomic_numbers is not None:
+                    logger.info(f"\tQ_MEAN\tQ_STD")
+                    for am in torch.unique(atomic_numbers):
+                        mask = (atomic_numbers == am)
+                        q_am = latent_charges[mask]
+                        mean_q = q_am.mean(dim=0)
+                        std_q = q_am.std(dim=0)
+                        logger.info(f"{am}\t{mean_q}\t{std_q}")
+                else:
+                    logger.info("atomic_numbers is None; skip per-element Q stats")
+            if compute_energy:
+                logger.info(f"E_lr = {E_lr.item() if E_lr.numel()==1 else E_lr}")
+        if self._log_step_counter % self.log_freq == 0 or self._log_step_counter == 1:
+            # 权重 norm 摘要。注意: 该打印发生在 forward 内, 而 DeePMD 训练
+            # 循环在每步 forward 之前已调用 optimizer.zero_grad(), 因此此处
+            # 读取 param.grad 永远为 None (无意义); 梯度是否到达 LES 应通过
+            # HybridLESModel 注册的 backward hook (打印 [LES-grad]) 或在
+            # loss.backward() 之后观察。这里只记录权重演化以追溯学习。
+            logger.info("Q NN params (norm summary):")
+            for name, param in self.atomwise.named_parameters():
+                pnorm = param.detach().norm().item() if param.numel() else 0.0
+                frozen = "frozen" if not param.requires_grad else "train"
+                logger.info(f"  {name}: |w|={pnorm:.6e} ({frozen})")
+            if compute_energy:
+                logger.info(f"E_lr graph : {E_lr.grad_fn}")
+
     def forward(self,
                positions: torch.Tensor, # [n_atoms, 3]
-               cell: torch.Tensor, # [batch_size, 3, 3]
+               cell: Optional[torch.Tensor] = None, # [batch_size, 3, 3] (无盒子时传 None, 走实空间直接求和)
                e_ext: Optional[torch.Tensor]= None,
                desc: Optional[torch.Tensor]= None, # [n_atoms, n_features]
                latent_charges: Optional[torch.Tensor] = None, # [n_atoms, ]
@@ -119,7 +183,7 @@ class Les(nn.Module):
                latent_kappas: Optional[torch.Tensor] = None, # [n_atoms, ]
                latent_alphas: Optional[torch.Tensor] = None, # [n_atoms, ]
                atomic_numbers: Optional[torch.Tensor] = None, # [n_atoms, ]
-               atomic_types: Optional[list] = None,
+               atomic_types: Optional[List[str]] = None,
                batch: Optional[torch.Tensor] = None,
                compute_energy: bool = True,
                compute_field: bool = False,
@@ -154,22 +218,30 @@ class Les(nn.Module):
             latent_charges = self.atomwise(desc, batch)
         else:
             raise ValueError("Either desc or latent_charges must be provided")
+        # Optional[Tensor] 精化为 Tensor: TorchScript 需要后续的 q 入参类型确定
+        assert latent_charges is not None
 
-        if atomic_types is not None:
-            atomic_numbers = type2number.type2num(atomic_types)
+        # atomic_types->atomic_numbers 走 Python dict 查表 (type2number), 逻辑本体在
+        # @torch.jit.unused 方法中, 编译期不参与; 冻结链路直接传 atomic_numbers。
+        if torch.jit.is_scripting():
+            pass
+        else:
+            if atomic_types is not None:
+                atomic_numbers = self._atomic_numbers_from_types(atomic_types)
+
+        # 固定电荷/原子极化率查表是模块内 buffer, 索引张量需与 buffer 同设备。
+        if atomic_numbers is not None:
+            atomic_numbers = atomic_numbers.to(device=latent_charges.device)
 
         if atomic_numbers is not None and self.use_fixed_atomic_charges:
-            device = latent_charges.device
-            latent_charges = latent_charges + self.fixed_charges(atomic_numbers).to(device=device).unsqueeze(-1)
+            latent_charges = latent_charges + self.fixed_charges(atomic_numbers).unsqueeze(-1)
 
         if atomic_numbers is not None and self.use_atomic_alpha and latent_alphas is not None:
             baseline_alphas = self.atomic_alpha(atomic_numbers)
-            #print(f'baseline_alphas: {baseline_alphas}')
             if latent_alphas.dim() == 1:
                 latent_alphas = latent_alphas + baseline_alphas
             elif latent_alphas.dim() == 3:
                 latent_alphas = latent_alphas + baseline_alphas[:,None,None] * torch.eye(3, device=baseline_alphas.device).unsqueeze(0) # [n_atoms, 3, 3]
-
 
         # compute the long-range interactions
         if compute_energy:
@@ -199,36 +271,26 @@ class Les(nn.Module):
         if latent_kappas is not None and q_induced is not None:
             latent_charges = latent_charges + q_induced
 
-        # compute the BEC
-        if compute_bec:
-            bec = self.bec(q=latent_charges,
-                           u=latent_dipoles,
-                           r=positions,
-                           cell=cell,
-                           batch=batch,
-                           output_index=bec_output_index,
-		           )
+        # BEC 仅被显式请求时计算, 由 @torch.jit.unused 的 BEC.forward 承担 (内含
+        # 复数投影与高阶 autograd), 不进入冻结模型的计算图。
+        bec: Optional[torch.Tensor] = None
+        if torch.jit.is_scripting():
+            pass
         else:
-            bec = None
+            if compute_bec:
+                bec = self.bec(q=latent_charges,
+                               u=latent_dipoles,
+                               r=positions,
+                               cell=cell,
+                               batch=batch,
+                               output_index=bec_output_index,
+                               )
 
-        if self.verbose:
-            self._log_step_counter += 1
-            if self._log_step_counter % self.log_freq == 0 or self._log_step_counter == 1:
-                logger.info(f'Training steps :{self._log_step_counter}')
-                if latent_charges is not None:
-                    logger.info(f"latent_charges mean: {latent_charges.mean().item()}, std: {latent_charges.std().item()}")
-                    logger.info(f"\tQ_MEAN\tQ_STD")
-                    if atomic_numbers is None: raise TypeError(f'atomic_numbers derived from {atomic_types} is None')
-                    for am in torch.unique(atomic_numbers):
-                        mask = (atomic_numbers == am)
-                        q_am = latent_charges[mask]
-                        mean_q = q_am.mean(dim=0)
-                        std_q = q_am.std(dim=0)
-                        logger.info(f"{am}\t{mean_q}\t{std_q}")
-                if compute_energy:
-                    logger.info(f"E_lr = {E_lr.item() if E_lr.numel()==1 else E_lr}")
-            if self._log_step_counter % 1000 == 0 or self._log_step_counter == 1:
-                logger.info(f)
+        # 日志/调试分支仅 eager 下生效 (见 _log_verbose_stats)。
+        if torch.jit.is_scripting():
+            pass
+        else:
+            self._log_verbose_stats(latent_charges, atomic_numbers, E_lr, compute_energy)
 
         output = {
             'E_lr': E_lr,

@@ -31,7 +31,7 @@ class Ewald(nn.Module):
     def forward(self,
                 q: torch.Tensor,  # [n_atoms, n_q] or [n_atoms]
                 r: torch.Tensor, # [n_atoms, 3]
-                cell: torch.Tensor, # [batch_size, 3, 3]
+                cell: Optional[torch.Tensor] = None, # [batch_size, 3, 3] (无盒子传 None, 走实空间求和)
                 batch: Optional[torch.Tensor] = None,
                 u: Optional[torch.Tensor] = None, # [n_atoms, n_q, 3] or [natoms, 3]
                 quad: Optional[torch.Tensor] = None, # [natoms,3,3]
@@ -289,18 +289,23 @@ class Ewald(nn.Module):
                 quad = quad.unsqueeze(1)
             assert quad.shape == (n_node, n_q, 3, 3), 'quad dimension error'
 
-        volume = torch.det(cell_now)
+        volume = torch.linalg.det(cell_now)
         cell_inv = torch.linalg.inv(cell_now)
         G = 2 * torch.pi * cell_inv.T  # Reciprocal lattice vectors [3,3], G = 2π(M^{-1}).T
 
-        if alpha is not None and hasattr(self, 'use_epsilon_r_scaling') and self.use_epsilon_r_scaling:
+        # use_epsilon_r_scaling 始终在 __init__ 中设置, 无需 hasattr
+        # (torch.jit.script 不支持 hasattr)。
+        if alpha is not None and self.use_epsilon_r_scaling:
             epsilon_r = self._get_epsilon_r(alpha, volume) #[n_q]
         else:
             epsilon_r = torch.ones(n_q, device=device, dtype=r_raw.dtype)
 
-        # max Nk for each axis
+        # max Nk for each axis (列表推导式里的 .item() 无法被 torch.jit.script,
+        # 改为显式循环)
         norms = torch.norm(cell_now, dim=1)
-        Nk = [max(1, int(n.item() / self.dl)) for n in norms]
+        Nk: List[int] = []
+        for i in range(3):
+            Nk.append(max(1, int(norms[i].item() / self.dl)))
         n1 = torch.arange(-Nk[0], Nk[0] + 1, device=device)
         n2 = torch.arange(-Nk[1], Nk[1] + 1, device=device)
         n3 = torch.arange(-Nk[2], Nk[2] + 1, device=device)

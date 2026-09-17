@@ -16,6 +16,9 @@ class BEC(nn.Module):
         self.epsilon_factor = epsilon_factor
         self.normalization_factor = epsilon_factor ** 0.5
 
+    # BEC 前向含复数投影与逐组分高阶 autograd, 不进入冻结模型计算图
+    # (Les.forward 用 torch.jit.is_scripting() 隔离调用)。
+    @torch.jit.unused
     def forward(self,
                 q: torch.Tensor,  # [n_atoms, n_q]
                 r: torch.Tensor, # [n_atoms, 3]

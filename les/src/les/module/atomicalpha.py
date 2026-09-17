@@ -100,9 +100,15 @@ class AtomicAlpha(nn.Module):
                  normalization_factor: float = 0.1481847/14.3996, # bohr^3 -> e*A/(V/A)
                  ):
         super().__init__()
-        self.alpha_dict = alpha_dict
         self.normalization_factor = normalization_factor
+        # 查找表: 与 FixedCharges 同理, 用定长 buffer 取代 dict + .item()
+        # (torch.jit.script 兼容)。persistent=False 不改变 ckpt 键集合。
+        table = torch.zeros(max(alpha_dict) + 1, dtype=torch.float64)
+        for z, a in alpha_dict.items():
+            table[z] = float(a)
+        self.register_buffer("alpha_table", table, persistent=False)
 
     def forward(self, atomic_numbers: torch.Tensor) -> torch.Tensor:
-        alpha = torch.tensor([self.alpha_dict[atomic_number.item()] for atomic_number in atomic_numbers], device=atomic_numbers.device)
+        alpha = self.alpha_table[atomic_numbers.long()]
         return alpha * self.normalization_factor
+
