@@ -12,6 +12,10 @@ It does **not** beat it on energy accuracy.
 
 The learnable-charge variant (`use_fixed_atomic_charges: false`) also beats the ordinary model on force, but only by about 1-2%, and it shows no energy advantage.
 
+The force gain is specific to the schedule it was measured under, not a property of the architecture alone.
+Everything above uses `decay_steps 5000`, and the latent charges are still in transit at step 5000, so the gain depends on the long low-rate tail that follows.
+The delayed-cliff probe later in this document shortens that tail and widens the LES arms' replicate spread from about 4% to 26 - 27%; read that section before quoting the gain as a model property.
+
 So the defensible recommendation is narrower than "LES is better": if you use `hybrid_ener` on this dataset, use the fixed-charge configuration and expect a force gain, not an energy gain.
 
 ## Dataset
@@ -284,7 +288,14 @@ Checkpoints are only kept from step 6000 onward, so the first two rows can only 
 Note what this shows: force error is still creeping down at 10,000 steps, about 2% over the last 4,000 steps, while energy error stopped improving after step 6000 and now merely wanders.
 Training is not fully converged, and extension beyond 10,000 steps would be needed before treating either metric as final.
 
-## Is the latent charge underfitted? Delaying the learning-rate cliff
+## Is the latent charge underfitted? A convergence probe with a delayed cliff
+
+**Read this section as a probe, not as an accuracy comparison.**
+The two schedules differ only in `decay_steps`, and neither is a schedule worth shipping: one ends the run at `5.93e-6`, the other at `4.56e-7`, and the second is so small that the final 2500 steps barely move the model at all.
+The question here is narrow and diagnostic - were the latent charges still learning when the rate collapsed, that is underfitted, or had they genuinely converged? - and it is answered from the charge trajectories and from how much the model can still move, not from which arm scores better.
+No accuracy conclusion follows from this section, in either direction.
+
+### The schedule is a step function, not a ramp
 
 Everything above was trained with `decay_steps: 5000` out of `numb_steps: 10000`.
 That reads like a smooth decay, and it is not one.
@@ -293,20 +304,20 @@ That reads like a smooth decay, and it is not one.
     decay_rate = exp( log(stop_lr / start_lr) / (stop_steps / decay_steps) )
     lr(step)   = max( start_lr * decay_rate ** (step // decay_steps), stop_lr )
 
-So `decay_steps` is not a decay rate: it is the **length of the full-rate phase**, and with `start_lr 1e-3`, `stop_lr 3.51e-8` and `stop_steps 10000` the two schedules compared here are:
+So `decay_steps` is not a decay rate: it is the **length of the full-rate phase**, and with `start_lr 1e-3`, `stop_lr 3.51e-8` and `stop_steps 10000` the two schedules are:
 
 | `decay_steps` | full rate `1.0e-3` | then, to the end | final 2500 steps |
 |---|---|---|---|
 | 5000 (everything above) | steps 0 - 4999 | `5.93e-6` | at `5.93e-6` |
-| 7500 (this section) | steps 0 - 7499 | `4.56e-7` | at `4.56e-7` |
+| 7500 (this probe) | steps 0 - 7499 | `4.56e-7` | at `4.56e-7` |
 
 The runs' own `lr` column confirms it rather than trusting the formula: the d5000 curves print `1.00e-3` through step 5000 then `5.9e-6` from step 5100, and the d7500 curves print `1.00e-3` through step 7500 then `4.6e-7` from step 7600.
 
-That cliff is what raised the question this section answers.
-Latent charges that move only a little over the final 5000 steps might have been frozen by the schedule rather than by having converged, i.e. underfitted.
 Six further runs were trained with `decay_steps: 7500` and nothing else changed: same arms, same two seeds, same network, same data order, same loss.
-Moving the cliff to 7500 buys 2500 extra full-rate steps and pays for them with a learning rate 13x smaller over the final 2500.
-Those two effects cannot be separated inside this one experiment, so the caveat is carried into the findings rather than hidden.
+Moving the cliff to 7500 buys the charges 2500 more full-rate steps.
+It is not a clean single-variable change, because the same move also drops the post-cliff rate 13x; that is dealt with under confounds.
+The confound limits what the *metrics* can say.
+It does not limit the charge-trajectory evidence, which compares the two arms over a window in which they differ only in rate.
 
 ### Is the comparison matched?
 
@@ -366,23 +377,53 @@ The gradient magnitude tells the same story in phase terms.
 The median total `|grad|` of the charge network is `1.27e+01` (q A) and `7.28e+01` (fx A) while the rate is full, then falls to `7.96e-02` and `2.74e-01` after the cliff at 5000 - a collapse of roughly 160x to 265x in a single step.
 By step 5000 the charge network is nowhere near a stationary point; the cliff lands on a network that is still moving fast.
 
-### Key metrics
+### The cliff freezes the model in place
 
-Two summaries are needed, because they answer different questions.
-Averaging over steps 6000 - 10000 mixes in checkpoints 6000 and 7000, where the d7500 arms are still at the full rate and correspondingly noisy, so that average overstates the penalty for delaying the cliff.
-The final checkpoint is the converged comparison.
+The diagnostic signature of the delayed cliff is not the metric average but the metric's *stability*.
+Over steps 8000 - 10000, by which point both schedules are past their cliff, per run:
 
-At step 10000, mean over the two replicates (negative delta = the later cliff is better):
+| run | energy max/min, `5000` | energy max/min, `7500` | force change, `5000` | force change, `7500` |
+|---|---|---|---|---|
+| ordinary A | 1.12x | 1.01x | -0.39% | -0.25% |
+| ordinary B | 1.41x | 1.05x | -1.04% | -0.15% |
+| hybrid_q A | 1.20x | 1.01x | -0.41% | -3.27% |
+| hybrid_q B | 1.48x | 1.02x | -0.49% | -0.09% |
+| hybrid_fixed A | 1.62x | 1.03x | -0.29% | -2.94% |
+| hybrid_fixed B | 2.28x | 1.03x | -0.43% | -0.11% |
 
-| arm | energy RMSE, 5000 | energy RMSE, 7500 | delta | force RMSE, 5000 | force RMSE, 7500 | delta |
-|---|---|---|---|---|---|---|
-| hybrid_fixed | 1.1252e-03 | 6.3863e-04 | -43.2% | 7.4915e-02 | 7.9128e-02 | +5.6% |
-| hybrid_q | 9.7557e-04 | 8.0992e-04 | -17.0% | 7.9991e-02 | 8.4015e-02 | +5.0% |
-| ordinary | 1.0425e-03 | 8.3767e-04 | -19.7% | 8.1274e-02 | 7.4607e-02 | -8.2% |
+`energy max/min` is the largest over the smallest of the three checkpoints' energy RMSE; `force change` is the last checkpoint's force RMSE relative to the first.
 
-Per replicate, at the same final checkpoint:
+Under `decay_steps 5000` the energy error still wanders by up to 2.28x from checkpoint to checkpoint, which is the energy-zero drift described earlier in this document.
+Under `7500` it is flat to within 5%, and the force to within 3.3%.
+The rate `4.56e-7` is small enough that the model stops moving: wherever it stood at step 7500 is where it stays.
 
-| arm | rep | energy RMSE, 5000 | energy RMSE, 7500 | delta | force RMSE, 5000 | force RMSE, 7500 | delta |
+Two consequences follow, and they point in different directions.
+
+The first is a limit on the rest of this document: neither schedule produces a converged model.
+The d7500 "final checkpoint" is a snapshot of the step-7500 state, and the d5000 final checkpoint is one arbitrary phase of a series still drifting by up to 2.28x.
+Neither is a fixed point, so neither should be read as the model's converged accuracy.
+
+The second is what makes the probe useful.
+Because the post-cliff phase is nearly a no-op under d7500, any difference between the two replicates that exists when the rate collapses survives to the end.
+Under d5000 the 5000 post-cliff steps at `5.93e-6` still do real annealing and pull the replicates together; under d7500 nothing does.
+
+### What that does to the replicates
+
+The informative statistic is therefore the spread between replicates, not the mean over them.
+Force RMSE at the final checkpoint, with replicate B expressed relative to A (`|B / A - 1|`):
+
+| arm | spread, `5000` | spread, `7500` |
+|---|---|---|
+| ordinary | 6.0% | 6.6% |
+| hybrid_q | 4.3% | 27.4% |
+| hybrid_fixed | 4.1% | 26.2% |
+
+The ordinary model's replicates land 6 - 7% apart under either schedule, so freezing costs it nothing.
+Both LES arms land about 4% apart under d5000 and 26 - 27% apart under d7500.
+
+The per-replicate deltas show the same shape, and show that the arm matters less than the seed:
+
+| arm | rep | energy, `5000` | energy, `7500` | delta | force, `5000` | force, `7500` | delta |
 |---|---|---|---|---|---|---|---|
 | hybrid_fixed | A | 7.0353e-04 | 7.1836e-04 | +2.1% | 7.6477e-02 | 9.1040e-02 | +19.0% |
 | hybrid_fixed | B | 1.5468e-03 | 5.5889e-04 | -63.9% | 7.3354e-02 | 6.7216e-02 | -8.4% |
@@ -391,33 +432,31 @@ Per replicate, at the same final checkpoint:
 | ordinary | A | 1.1636e-03 | 8.6664e-04 | -25.5% | 8.3804e-02 | 7.7136e-02 | -8.0% |
 | ordinary | B | 9.2139e-04 | 8.0869e-04 | -12.2% | 7.8743e-02 | 7.2078e-02 | -8.5% |
 
-Three things stand out.
+Both LES arms' replicate A is about 19% worse on force and both arms' replicate B is 8 - 10% better, to within a percentage point.
+So the two hybrid variants behave as one population, and under the frozen schedule the replicate is the dominant factor while the arm is close to irrelevant.
+This also means the arm-level force change - +5.9% (`hybrid_q`) and +6.4% (`hybrid_fixed`) over the matched window - is not a resolvable effect: it is a two-sample mean of a quantity whose spread between the two replicates is 26%.
 
-Energy improves under the later cliff in 5 of the 6 runs, and the mean improvement is large (a factor of 1.2 to 1.8, i.e. -17% to -43%).
-The exception is `hybrid_fixed` replicate A, which is flat at +2.1%.
+Where the separation appears:
+at step 7000, the last full-rate checkpoint, the d7500 LES arms are 4.3% (`hybrid_q`) and 13.3% (`hybrid_fixed`) apart; at the first post-cliff checkpoint, step 8000, they are 42% and 39% apart.
+The divergence therefore appears across the cliff rather than long before it.
+With a single pre-cliff checkpoint and two seeds it cannot be said whether the cliff created the separation or merely first sampled it there.
 
-Force behaves differently, and the split is not random: the ordinary arm improves on **both** replicates (-8.0%, -8.5%), while both LES arms improve on replicate B and degrade sharply on replicate A (+19.0% to +19.1%).
-Net, delaying the cliff slightly worsens the force fit of the LES arms and improves that of the plain model.
+Matched-window means, steps 8000 - 10000, the only window in which both schedules are past their cliff:
 
-The consequence is a reversal of the study's headline ranking.
-Under `decay_steps 5000` both LES arms beat the ordinary model on force in **all four** arm-replicate comparisons (`hybrid_q` 8.17e-2 vs 8.38e-2 and 7.82e-2 vs 7.87e-2; `hybrid_fixed` 7.65e-2 vs 8.38e-2 and 7.34e-2 vs 7.87e-2).
-Under `decay_steps 7500` they beat it in only **two of four**, losing on replicate A by a wide margin (`hybrid_q` 9.73e-2 vs 7.71e-2; `hybrid_fixed` 9.10e-2 vs 7.71e-2).
-Since force is the metric on which the LES channel earns its place, the later cliff removes the advantage on one replicate and keeps it on the other.
-
-For reference, the mean over steps 6000 - 10000, which includes the still-full-rate transient:
-
-| arm | energy RMSE, 5000 | energy RMSE, 7500 | delta | force RMSE, 5000 | force RMSE, 7500 | delta |
+| arm | energy, `5000` | energy, `7500` | delta | force, `5000` | force, `7500` | delta |
 |---|---|---|---|---|---|---|
-| hybrid_fixed | 9.074e-04 | 7.217e-03 | +695.3% | 7.523e-02 | 7.892e-02 | +4.9% |
-| hybrid_q | 1.020e-03 | 1.008e-02 | +888.2% | 8.048e-02 | 8.481e-02 | +5.4% |
-| ordinary | 1.087e-03 | 6.061e-03 | +457.8% | 8.247e-02 | 7.922e-02 | -3.9% |
+| ordinary | 1.0817e-03 | 8.2602e-04 | -23.6% | 8.1543e-02 | 7.4688e-02 | -8.4% |
+| hybrid_q | 1.0330e-03 | 8.1534e-04 | -21.1% | 8.0160e-02 | 8.4915e-02 | +5.9% |
+| hybrid_fixed | 1.0207e-03 | 6.4016e-04 | -37.3% | 7.5047e-02 | 7.9885e-02 | +6.4% |
 
-The energy column here is dominated by checkpoints 6000 and 7000, where the d7500 arms are still at `1e-3` and their energy error is 30x to 100x larger than at convergence (`hybrid_q_sB` reads `2.52e-02` at 6000 and `3.95e-02` at 7000, then `7.04e-04` at 10000).
-It is a statement about the training transient, not about the model that comes out.
+This replaces the earlier revision's comparison at the single final checkpoint, which was invalid twice over: it read a drifting series (`hybrid_fixed` B's final value, `1.5468e-03`, is that run's own window maximum, and most of its apparent -63.9%), and it read a frozen snapshot as if it were converged.
+Over the matched window the energy deltas are -23.6% (ordinary), -21.1% (`hybrid_q`) and -37.3% (`hybrid_fixed`).
+The ordinary model gains about as much as `hybrid_q`, so most of the energy movement is a property of the schedule rather than of the LES channel.
+Averaging over 6000 - 10000 instead would be worse, not better: checkpoints 6000 and 7000 are still at full rate for the d7500 arms, where their energy error is 30x to 100x larger, so that average describes the transient.
 
 ### The terms of the LES output
 
-Where the change actually lands, averaging over steps 8000 - 10000, by which point both schedules have decayed:
+Where the change lands, averaging over steps 8000 - 10000, by which point both schedules have decayed:
 
 | arm | `decay_steps` | E_SR | E_LR | \|E_LR/E_SR\| | RMS F_SR | RMS F_LR | RMS F_LR / RMS F_SR |
 |---|---|---|---|---|---|---|---|
@@ -430,39 +469,46 @@ Where the change actually lands, averaging over steps 8000 - 10000, by which poi
 | q B | `5000` | -2.9918e+04 | -2.5791e+01 | 8.62e-04 | 8.0998e-01 | 1.6477e-01 | 0.204 |
 | q B | `7500` | -2.9915e+04 | -2.8683e+01 | 9.59e-04 | 8.0336e-01 | 1.3426e-01 | 0.168 |
 
-The long-range energy grows in magnitude under the later cliff in all four LES arms: `q A` by 56% (`-2.11e+01` to `-3.30e+01`), `q B` by 11%, `fx A` by 3.6%, `fx B` by 1.4%.
-`|E_LR/E_SR|` rises with it in every case.
-So the extra full-rate steps do make the long-range channel do more work, and that is the mechanism behind the energy gain.
+The long-range energy grows in magnitude under the later cliff in all four LES arms: `q A` by 56% (`-2.11e+01` to `-3.30e+01`), `q B` by 11%, `fx A` by 3.6%, `fx B` by 1.4%, and `|E_LR/E_SR|` rises with it in every case.
+So the extra full-rate steps do make the long-range channel carry more of the energy, which is the mechanism behind the energy movement in the table above.
+It is a statement about what the charges do, not about whether the model is better.
 
 The force side of the same split does not follow.
 `RMS F_LR / RMS F_SR` is flat or slightly lower under the later cliff in all four arms (0.246 to 0.232, 0.204 to 0.168, 0.670 to 0.665, 0.687 to 0.681), and `RMS F_SR` itself rises for `q A` and `fx A`.
-More full-rate steps buy a larger long-range energy correction without a better long-range force, which is consistent with the metric table above.
+More full-rate steps shift the long-range channel's share of the energy without improving its share of the force.
+That is consistent with the force fit being the seed-sensitive part: the channel that the extra steps grow is not the one that would need to improve to tighten the force.
 
 ### Verdict
 
-The hypothesis is confirmed in its literal form.
+The probe answers its question in the affirmative, and that answer is solid.
 The charges were not converged at step 5000; the cliff froze them.
-Over the identical window steps 5001 - 7500 the charge network's gradient is 140x to 202x larger under the later cliff and the charges move 3x to 7x further, so the plateau after step 5000 was imposed by the schedule.
+Over the identical window 5001 - 7500 the charge network's gradient is 140x to 202x larger under the later cliff and the charges move 3x to 7x further, so the plateau after step 5000 was imposed by the schedule rather than earned.
 
-The further claim that the charges would therefore have fitted better is only partly true, and the two metrics disagree.
-Energy does improve: mean `-17%` to `-43%` at the final checkpoint on the LES arms, reliably, via a larger long-range energy correction.
-Force does not: mean `+5.0%` (`hybrid_q`) and `+5.6%` (`hybrid_fixed`) worse, with the plain model improving `-8.2%` under the same change.
-The charge network was therefore not the binding constraint on force, and handing it more full-rate steps made the force fit slightly worse while making the energy fit better.
+What follows from it is a change in the model's character, not in its accuracy.
+Under the delayed cliff the post-cliff phase is a near no-op: the energy zero stops drifting (stability 1.01 - 1.05x against 1.12 - 2.28x), the force settles to within 3.3%, and the LES arms' replicate spread widens from about 4% to 26 - 27% while the ordinary model's stays at 6 - 7%.
+A schedule that freezes the run freezes the seed too, and the LES long-range channel is the part that is still seed-dependent at the cliff.
 
-The most consequential detail is the ranking flip on force.
-Under the original schedule the LES arms beat the ordinary model on force on both replicates; under the later cliff they beat it on one and lose badly on the other.
-Any statement of the form "the LES arm wins on force" therefore has to name the schedule it was measured under.
+The tempting reading - that more full-rate steps for the charges means a more accurate model - is not supported and cannot be tested here.
+The force deltas between the schedules are +5.9% and +6.4% on the mean of two replicates whose spread is 26%, so they are not resolvable, and the energy movement is shared with the ordinary model, which has no LES channel at all.
+The disputed ranking (the LES arms beating the ordinary model on force in all four arm-replicate comparisons under `decay_steps 5000`, and in only two of four under `7500`) is best read the same way: under the frozen schedule one LES seed lands badly and there is no annealing left to recover it.
 
-### The confound, stated plainly
+None of this is an accuracy verdict, because the delayed schedule is not a usable one: its last 2500 steps run at an effective standstill.
+It is a diagnostic that shows the charge network is not converged at step 5000 and that the LES channel's force fit is seed-sensitive when the anneal is removed.
+Whether a schedule designed to converge both - a longer full-rate phase plus a genuinely decaying tail - would keep the force advantage is not known, and the caveats below say what it would take to find out.
+
+### Confounds
 
 The two effects are not separable in this experiment.
 Moving the cliff to 7500 gives 2500 more steps at `1.0e-3` **and** ends the run at `4.56e-7` instead of `5.93e-6`.
-If the d7500 arms are not better on force, the honest reading is "not better despite the longer full-rate phase, and further handicapped by the smaller final rate", not "the schedule is irrelevant to force".
+Every metric comparison between the two schedules therefore measures the pair of changes together, and since the second change freezes the run, the metrics mostly measure the freeze.
 Disentangling them needs a schedule that keeps the final rate equal, either a third arm with `decay_steps 7500` and `stop_lr` raised 13x, or a constant-rate control that never decays; neither was run here.
+The charge-trajectory evidence in "What the charges did across each cliff" is unaffected, because that window holds the rate comparison on one side only.
 
-The replicate disagreement is a second limit.
-Replicate A degrades on force by ~19% while replicate B improves by ~9%, and the effect size is the same order as the seed-to-seed spread that the caveats above already flag as too small a sample to pin down a force gain.
-The energy result is consistent in direction across 5 of 6 runs; the force result is not.
+Two seeds.
+The 26% replicate spread is itself a two-sample estimate, so its magnitude is uncertain; the direction (the LES arms widen, the ordinary model does not) is consistent across both LES arms and both schedules.
+Likewise the pre-cliff spread at step 7000 rests on a single checkpoint taken while the rate is still full, where the metrics are noisy.
+
+Neither schedule is a production schedule, so nothing in this section should be quoted as an accuracy result.
 
 ### Reproduce
 
@@ -477,6 +523,7 @@ bash sweep_valid.sh $(cd extended && ls -d run_*_d7500)   # writes sweep_valid_d
 python diag_lrphase.py                   # writes lrphase_q.tsv, lrphase_grad.tsv, lrphase_srlr.tsv
 jupyter nbconvert --execute --inplace LES_analysis.ipynb
 ```
+
 
 ## Correctness prerequisite: three bugs had to be fixed first
 
@@ -515,6 +562,8 @@ The historical pre-fix hybrid checkpoint (`01.train/lcurve_q.out`, 10k steps) ha
 
 - One dataset only: small periodic water, 400 frames, 64 molecules per frame. Conclusions may not transfer to other chemistries or sizes.
 - Two seeds and three late checkpoints per run. That is enough to see the checkpoint-to-checkpoint swing but not enough to put a tight error bar on the force gain.
+- Schedule dependence. Every headline number here uses `decay_steps 5000`. The force gain does not survive shortening the post-cliff anneal: see "Is the latent charge underfitted?".
+- No converged model. Neither the `decay_steps 5000` runs nor the probe's `7500` runs reach a fixed point, so the late checkpoints are snapshots rather than converged values.
 - The energy ranking is unresolved rather than resolved as a tie. A larger validation set or more checkpoints might settle it; this one cannot.
 - Absolute differences are small. The fixed-charge force gain is 5.6e-3 to 7.4e-3 eV/A in absolute terms, which matters on this clean dataset but may be dwarfed by other errors at production scale.
 - Accuracy only. See the open gaps below before treating this as deployable.
