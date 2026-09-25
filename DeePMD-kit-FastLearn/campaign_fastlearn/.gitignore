@@ -1,0 +1,7 @@
+# Model checkpoints: ~25 MB each and there are 265 of them (2.4 GB), all
+# regenerable from the configs and scripts in this tree. Keep them out of git.
+*.pt
+*.pth
+
+# editor leftovers
+*.swp

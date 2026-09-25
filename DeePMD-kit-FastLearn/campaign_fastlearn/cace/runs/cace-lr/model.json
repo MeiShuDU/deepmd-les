@@ -1,0 +1,65 @@
+{
+  "recorded_utc": "2026-09-21T03:18:36+00:00",
+  "arm": "lr",
+  "tag": "cace-lr_model",
+  "model": "cace/runs/cace-lr/model.pth",
+  "model_sha256": "6de746328afcf068927bc4fed064ab6c074f84b484cb2ae9e18cdab045ad55c8",
+  "cace_root": "/root/app/cace-ts",
+  "valid_xyz": "/root/app/deepmd-les/deepmd-les/DeePMD-kit-FastLearn/campaign_fastlearn/xyz/valid.xyz",
+  "valid_xyz_sha256": "8345c8dd5cccde0acfb48f7ad494de5f1f44aef4a7a9a0d8776fb6dc491b6d47",
+  "cutoff": 5.5,
+  "batch_size": 4,
+  "atomic_energies": {
+    "1": -187.6043857100553,
+    "8": -93.80219285502734
+  },
+  "lr_mix_weight": 1.0,
+  "n_frames": 80,
+  "n_atoms": 192,
+  "split_check_vs_deepmd": {
+    "nframes_cace": 80,
+    "nframes_deepmd": 80,
+    "natoms": 192,
+    "energy_from_frame_objects": "unavailable (RuntimeError: Atoms object has no calculator.)",
+    "max_dpos_a": 5.000000413701855e-09,
+    "max_dcell_a": 0.0,
+    "geometry_match": true
+  },
+  "mechanism": {
+    "e_lr_mean_ev_per_frame": 2.444035768508911,
+    "e_lr_std_ev_per_frame": 0.09425868839025497,
+    "f_lr_rms_ev_per_a": 0.07655665278434753,
+    "f_lr_over_f_tot": 0.09377186585941369,
+    "e_self_ev_per_frame": 76.6834716796875,
+    "f_self_rms_ev_per_a": 0.4491838812828064,
+    "f_self_over_f_tot": 0.5501913828509751,
+    "q_out_channels": 1,
+    "q_mean": 0.06344205886125565,
+    "net_charge_mean_per_frame": 12.180874824523926,
+    "sum_q2_mean_per_frame": 1207.7347412109375,
+    "ewald_params": [
+      {
+        "norm_factor": 1.0,
+        "sigma": 1.0,
+        "dl": 2,
+        "remove_self_interaction": false
+      }
+    ],
+    "self_term_ev_per_frame": 76.683469963582,
+    "self_over_e_lr": 31.375757217407227
+  },
+  "metrics": {
+    "cace-lr_model": {
+      "e_rmse": 0.0005209557712078094,
+      "e_mae": 0.0004742364108096808,
+      "e_r2": 0.974302351474762,
+      "f_rmse": 0.02929994836449623,
+      "f_mae": 0.023219775408506393,
+      "f_r2": 0.998715341091156,
+      "rmse": 0.0005209557712078094,
+      "bias": 0.0004709184286184609,
+      "spread": 0.0002227796067018062,
+      "bias2_over_rmse2": 0.8171271962085244
+    }
+  }
+}
