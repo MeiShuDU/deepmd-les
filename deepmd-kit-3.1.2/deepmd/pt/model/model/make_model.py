@@ -137,6 +137,7 @@ def make_model(T_AtomicModel: type[BaseAtomicModel]) -> type:
             fparam: Optional[torch.Tensor] = None,
             aparam: Optional[torch.Tensor] = None,
             do_atomic_virial: bool = False,
+            desc_out: Optional[list[torch.Tensor]] = None,
         ) -> dict[str, torch.Tensor]:
             """Return model prediction.
 
@@ -155,6 +156,11 @@ def make_model(T_AtomicModel: type[BaseAtomicModel]) -> type:
                 atomic parameter. nf x nloc x nda
             do_atomic_virial
                 If calculate the atomic virial.
+            desc_out
+                可选的输出通道: 非 None 时, 原子模型的 forward_atomic 会把本次前向
+                计算出的 descriptor (未 detach, 保留计算图) 追加到该列表中。供需要
+                复用描述符的复型模型使用 (如 hybrid_ener), 避免重复计算描述符。
+                默认 None, 对其它模型无任何影响。
 
             Returns
             -------
@@ -190,6 +196,7 @@ def make_model(T_AtomicModel: type[BaseAtomicModel]) -> type:
                 do_atomic_virial=do_atomic_virial,
                 fparam=fp,
                 aparam=ap,
+                desc_out=desc_out,
             )
             model_predict = communicate_extended_output(
                 model_predict_lower,
@@ -246,6 +253,7 @@ def make_model(T_AtomicModel: type[BaseAtomicModel]) -> type:
             do_atomic_virial: bool = False,
             comm_dict: Optional[dict[str, torch.Tensor]] = None,
             extra_nlist_sort: bool = False,
+            desc_out: Optional[list[torch.Tensor]] = None,
         ) -> dict[str, torch.Tensor]:
             """Return model prediction. Lower interface that takes
             extended atomic coordinates and types, nlist, and mapping
@@ -272,6 +280,9 @@ def make_model(T_AtomicModel: type[BaseAtomicModel]) -> type:
                 The data needed for communication for parallel inference.
             extra_nlist_sort
                 whether to forcibly sort the nlist.
+            desc_out
+                可选的输出通道, 见 forward_common。非 None 时原子模型会把本次前向的
+                descriptor 追加进去 (保留计算图)。
 
             Returns
             -------
@@ -296,6 +307,7 @@ def make_model(T_AtomicModel: type[BaseAtomicModel]) -> type:
                 fparam=fp,
                 aparam=ap,
                 comm_dict=comm_dict,
+                desc_out=desc_out,
             )
             model_predict = fit_output_to_model_output(
                 atomic_ret,

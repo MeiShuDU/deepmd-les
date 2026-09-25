@@ -236,6 +236,7 @@ class LinearEnergyAtomicModel(BaseAtomicModel):
         fparam: Optional[torch.Tensor] = None,
         aparam: Optional[torch.Tensor] = None,
         comm_dict: Optional[dict[str, torch.Tensor]] = None,
+        desc_out: Optional[list[torch.Tensor]] = None,
     ) -> dict[str, torch.Tensor]:
         """Return atomic prediction.
 
@@ -253,6 +254,10 @@ class LinearEnergyAtomicModel(BaseAtomicModel):
             frame parameter. (nframes, ndf)
         aparam
             atomic parameter. (nframes, nloc, nda)
+        desc_out
+            可选的输出通道, 见 BaseAtomicModel.forward_common_atomic。本模型由多个
+            子模型线性组合而成, 没有单一描述符, 因此按子模型顺序把每个子模型的
+            描述符依次追加进去。
 
         Returns
         -------
@@ -295,6 +300,7 @@ class LinearEnergyAtomicModel(BaseAtomicModel):
                     fparam,
                     aparam,
                     comm_dict=comm_dict,
+                    desc_out=desc_out,
                 )["energy"]
             )
         weights = self._compute_weight(extended_coord, extended_atype, nlists_)

@@ -118,6 +118,16 @@ void DeepPotPT::init(const std::string& model,
   module = torch::jit::load(model, device, metadata);
   module.eval();
   do_message_passing = module.run_method("has_message_passing").toBool();
+  // Long-range models (e.g. hybrid_ener) declare that their forward_lower needs the
+  // cell: Ewald needs the volume and the reciprocal vectors, which cannot be
+  // recovered from the extended region alone. Models frozen by older versions do
+  // not define the method, in which case the upstream behaviour is kept (no cell).
+  do_lower_box = false;
+  try {
+    do_lower_box = module.run_method("need_lower_box").toBool();
+  } catch (const c10::Error& e) {
+    do_lower_box = false;
+  }
   torch::jit::FusionStrategy strategy;
   strategy = {{torch::jit::FusionBehavior::DYNAMIC, 10}};
   torch::jit::setFusionStrategy(strategy);
@@ -272,18 +282,48 @@ void DeepPotPT::compute(ENERGYVTYPE& ener,
             options)
             .to(device);
   }
-  c10::Dict<c10::IValue, c10::IValue> outputs =
-      (do_message_passing)
-          ? module
-                .run_method("forward_lower", coord_wrapped_Tensor, atype_Tensor,
-                            firstneigh_tensor, mapping_tensor, fparam_tensor,
-                            aparam_tensor, do_atom_virial_tensor, comm_dict)
-                .toGenericDict()
-          : module
-                .run_method("forward_lower", coord_wrapped_Tensor, atype_Tensor,
-                            firstneigh_tensor, mapping_tensor, fparam_tensor,
-                            aparam_tensor, do_atom_virial_tensor)
-                .toGenericDict();
+  // Long-range models (do_lower_box) take the cell as a trailing argument, since
+  // their forward_lower cannot be evaluated without it. An empty cell is passed
+  // through as nullopt so that the model reports the missing cell itself.
+  c10::optional<torch::Tensor> box_tensor;
+  if (do_lower_box && !box.empty()) {
+    box_tensor =
+        torch::from_blob(const_cast<VALUETYPE*>(box.data()), {1, 9}, options)
+            .to(device);
+  }
+  c10::Dict<c10::IValue, c10::IValue> outputs;
+  if (do_message_passing) {
+    if (do_lower_box) {
+      outputs = module
+                    .run_method("forward_lower", coord_wrapped_Tensor,
+                                atype_Tensor, firstneigh_tensor, mapping_tensor,
+                                fparam_tensor, aparam_tensor, do_atom_virial_tensor,
+                                comm_dict, box_tensor)
+                    .toGenericDict();
+    } else {
+      outputs = module
+                    .run_method("forward_lower", coord_wrapped_Tensor,
+                                atype_Tensor, firstneigh_tensor, mapping_tensor,
+                                fparam_tensor, aparam_tensor, do_atom_virial_tensor,
+                                comm_dict)
+                    .toGenericDict();
+    }
+  } else {
+    if (do_lower_box) {
+      outputs = module
+                    .run_method("forward_lower", coord_wrapped_Tensor,
+                                atype_Tensor, firstneigh_tensor, mapping_tensor,
+                                fparam_tensor, aparam_tensor, do_atom_virial_tensor,
+                                box_tensor)
+                    .toGenericDict();
+    } else {
+      outputs = module
+                    .run_method("forward_lower", coord_wrapped_Tensor,
+                                atype_Tensor, firstneigh_tensor, mapping_tensor,
+                                fparam_tensor, aparam_tensor, do_atom_virial_tensor)
+                    .toGenericDict();
+    }
+  }
   c10::IValue energy_ = outputs.at("energy");
   c10::IValue force_ = outputs.at("extended_force");
   c10::IValue virial_ = outputs.at("virial");

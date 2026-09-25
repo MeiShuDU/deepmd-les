@@ -25,6 +25,25 @@ from deepmd.dpmodel import FittingOutputDef
 from deepmd.dpmodel.output_def import OutputVariableDef, OutputVariableCategory
 
 
+def _jsonable(value: Any) -> Any:
+    """把 les_params 里的张量 / ndarray 归一化成可 json 序列化的形式。
+
+    ``model.model_def_script = json.dumps(model_params)`` (见 hybridles_model.get_model)
+    会序列化整份配置。``initial_guess`` / ``freeze_charge`` 既可以写成 JSON 列表
+    (input.json 的写法), 也可以由程序直接传 torch.Tensor; 后者必须在此归一化,
+    否则 json.dumps 直接报错。Les 内部再把它们转回张量 (见 Les._type_table)。
+    """
+    if isinstance(value, dict):
+        return {k: _jsonable(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_jsonable(v) for v in value]
+    if torch.is_tensor(value):
+        return value.detach().reshape(-1).tolist()
+    if hasattr(value, "tolist"):  # numpy 数组 / 标量
+        return value.tolist()
+    return value
+
+
 @BaseAtomicModel.register("hybrid_ener")
 class HybridLESAtomicModel(DPAtomicModel):
     """短程 DeePMD 原子模型 + LES 长程模块。
@@ -50,7 +69,16 @@ class HybridLESAtomicModel(DPAtomicModel):
                 "fitting must be an instance of EnergyFittingNet, EnergyFittingNetDirect or InvarFitting for DPEnergyAtomicModel"
             )
         super().__init__(descriptor, fitting, type_map, **kwargs)
-        self.les_params = dict(les_params) if les_params else {}
+        self.les_params = _jsonable(dict(les_params) if les_params else {})
+
+        # LES 的逐类型电荷层 (freeze_charge / initial_guess) 以 type_map 为索引基准,
+        # 需要类型数与逐类型原子序数 (氧化数基线按真实原子序数查表)。这里在构造
+        # Les 之前注入, 使 Les 自身只需持有 int 与张量, 不必持有 type_map 字符串
+        # 列表 (TorchScript 更友好)。
+        from les.module import type2number
+        element_numbers = type2number.type2num(list(type_map))
+        self.les_params.setdefault("ntypes", len(type_map))
+        self.les_params.setdefault("element_numbers", [int(z) for z in element_numbers])
 
         from les import Les
         self.les_model = Les(les_arguments=self.les_params)
@@ -66,10 +94,9 @@ class HybridLESAtomicModel(DPAtomicModel):
         # type_map 映射成定长张量, forward 中直接张量索引, 既 scriptable 也更快。
         # persistent=False: 该表由 type_map 完全决定, 不进 state_dict, 因此不会
         # 改变既有 ckpt 的键集合 (旧 ckpt 仍可严格加载)。
-        from les.module import type2number
         self.register_buffer(
             "element_numbers",
-            type2number.type2num(list(type_map)).to(torch.int64),
+            element_numbers.to(torch.int64),
             persistent=False,
         )
 

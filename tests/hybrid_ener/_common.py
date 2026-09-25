@@ -85,14 +85,32 @@ def build_model(
     use_fixed_charges: bool = False,
     device: Optional[str] = None,
     seed: int = 0,
+    les_overrides: Optional[dict] = None,
 ):
     """Random-weight hybrid_ener model in float64, eval mode.
 
     use_fixed_charges toggles les_params.use_fixed_atomic_charges, which adds the
     FixedCharges baseline to the latent charges (H=+1, O=-2 for type_map O,H).
+    les_overrides replaces any charge-layer selector inherited from BASE_CONFIG
+    (use_atomwise) with the caller's choice, so one model per mode can be built.
     """
     cfg = copy.deepcopy(BASE_CONFIG)
-    cfg["model"]["les_params"]["use_fixed_atomic_charges"] = use_fixed_charges
+    if les_overrides is not None:
+        base = cfg["model"]["les_params"]
+        for key in (
+            "use_atomwise",
+            "local_charge",
+            "freeze_charge",
+            "use_fixed_charges",
+            "use_fixed_atomic_charges",
+            "initial_guess",
+            "claim_neutral",
+            "claim_total_charge",
+        ):
+            base.pop(key, None)
+        base.update(les_overrides)
+    else:
+        cfg["model"]["les_params"]["use_fixed_atomic_charges"] = use_fixed_charges
     torch.manual_seed(seed)
     np.random.seed(seed)
     model = get_model(normalize(cfg)["model"])

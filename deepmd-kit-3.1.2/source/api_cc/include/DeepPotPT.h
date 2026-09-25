@@ -336,6 +336,7 @@ class DeepPotPT : public DeepPotBackend {
   int max_num_neighbors;
   int gpu_id;
   bool do_message_passing;  // 1:dpa2 model 0:others
+  bool do_lower_box;  // 1:forward_lower needs the cell 0:others
   bool gpu_enabled;
   at::Tensor firstneigh_tensor;
   c10::optional<torch::Tensor> mapping_tensor;
