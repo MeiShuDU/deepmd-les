@@ -47,6 +47,6 @@ training:
     numb_btch: 3
   numb_steps: 10000
   seed: 10
-  disp_file: "lcurve.out"
+  disp_file: "lcurve_q.out"
   disp_freq: 100
   save_freq: 500

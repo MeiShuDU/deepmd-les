@@ -1,0 +1,7 @@
+arm	rep	checkpoint	step	rmse_e_peratom	rmse_f	energy_offset_peratom	energy_scale_slope
+deepmd_sA	A	s7/model.ckpt.pt	45000	1.947817e-04	5.016564e-02	-7.135263e-05	0.986885
+deepmd_sB	B	s7/model.ckpt.pt	45000	1.722471e-04	4.825519e-02	1.468614e-05	1.001124
+deepmd-les_sA	A	s8/model.ckpt-45000.pt	45000	2.075418e-04	4.770362e-02	1.808142e-05	1.003862
+deepmd-les_sB	B	s8/model.ckpt.pt	45000	1.717104e-04	4.345555e-02	-4.319588e-06	0.999427
+deepmd-les-cace-sched_sA	A	s8/model.ckpt-45000.pt	45000	1.615948e-04	4.237694e-02	1.567386e-05	0.997776
+deepmd-les-cace-sched_sB	B	s8/model.ckpt-45000.pt	45000	1.544189e-04	4.149158e-02	-1.480719e-05	1.011537

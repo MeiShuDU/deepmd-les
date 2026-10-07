@@ -1,0 +1,82 @@
+{
+  "arm": "cace-lr",
+  "replicate": 1,
+  "smoke": false,
+  "steps_per_epoch": 450,
+  "max_gpu_mb": 3487.1,
+  "finished": true,
+  "blocks": [
+    {
+      "n": 1,
+      "label": "phase0.0",
+      "epochs": 40,
+      "num_steps": 18000,
+      "seconds": 6088.12,
+      "s_per_batch": 0.338229,
+      "ok": true
+    },
+    {
+      "n": 2,
+      "label": "phase0.1",
+      "epochs": 40,
+      "num_steps": 18000,
+      "seconds": 5746.74,
+      "s_per_batch": 0.319263,
+      "ok": true
+    },
+    {
+      "n": 3,
+      "label": "phase0.2",
+      "epochs": 40,
+      "num_steps": 18000,
+      "seconds": 5856.12,
+      "s_per_batch": 0.32534,
+      "ok": true
+    },
+    {
+      "n": 4,
+      "label": "phase0.3",
+      "epochs": 40,
+      "num_steps": 18000,
+      "seconds": 5925.38,
+      "s_per_batch": 0.329188,
+      "ok": true
+    },
+    {
+      "n": 5,
+      "label": "phase0.4",
+      "epochs": 40,
+      "num_steps": 18000,
+      "seconds": 5962.79,
+      "s_per_batch": 0.331266,
+      "ok": true
+    },
+    {
+      "n": 6,
+      "label": "w_e=1",
+      "epochs": 100,
+      "num_steps": 45000,
+      "seconds": 14175.56,
+      "s_per_batch": 0.315012,
+      "ok": true
+    },
+    {
+      "n": 7,
+      "label": "w_e=10",
+      "epochs": 100,
+      "num_steps": 45000,
+      "seconds": 14451.0,
+      "s_per_batch": 0.321133,
+      "ok": true
+    },
+    {
+      "n": 8,
+      "label": "w_e=1000",
+      "epochs": 100,
+      "num_steps": 45000,
+      "seconds": 14579.57,
+      "s_per_batch": 0.32399,
+      "ok": true
+    }
+  ]
+}

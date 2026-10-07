@@ -1,0 +1,7 @@
+# Raw datasets and checkpoints: copies of data that lives (or is downloaded)
+# elsewhere, and models that are regenerable from the committed configs - the
+# same policy as the campaign trees' .gitignores. Scripts, notebooks, metrics
+# json/npz and the report stay in.
+*.xyz
+*.pt
+*.pth

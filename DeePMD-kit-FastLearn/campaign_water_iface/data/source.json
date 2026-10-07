@@ -1,0 +1,25 @@
+{
+  "source": "/root/app/deepmd-les/deepmd-les/DeePMD-kit-FastLearn/cace-lr-fit-datarepo/BingqingCheng-cace-lr-fit-0211150/fit-water-interface/slab-fps-n-500.xyz",
+  "sha256": "a0a20f09e897be0d0523bb2fa61892003e024e2ebf2b9b47e44cf90eafa8ba45",
+  "n_frames": 500,
+  "natoms": 1566,
+  "cell": [
+    25.6,
+    25.6,
+    65.0
+  ],
+  "atomic_energies": {
+    "1": -187.42397696905275,
+    "8": -93.71198848452647
+  },
+  "valid_fraction": 0.1,
+  "split_seed": 1,
+  "n_train": 450,
+  "n_valid": 50,
+  "deepmd_rcut": 6.0,
+  "sel": [
+    43,
+    84
+  ],
+  "energy_target": "residual (E_frame - sum_Z ref[Z])"
+}

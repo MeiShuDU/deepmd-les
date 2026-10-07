@@ -1,0 +1,77 @@
+
+### cace-lr_sA: blocks [1, 2, 3, 4, 5, 6, 7, 8] of 8 on cpod-1vg1a4d7wa0n [cuda]
+cace-lr_sA: 8 blocks scheduled, running blocks 1-8 (seed 1)
+  cd runs/cace-lr_sA && /root/venv310/bin/python ../../cace-lr/fit-cace-nnp.py 1 --smoke
+      | 2026-09-25 13:09:15.875 INFO: val_e/atom_rmse: 0.018005
+      | val_f_mae: 0.237783
+      | 2026-09-25 13:09:15.875 INFO: val_f_mae: 0.237783
+      | val_f_rmse: 0.313301
+      | 2026-09-25 13:09:15.876 INFO: val_f_rmse: 0.313301
+      |   block 7 w_e=10: 139.9 s for 450 batches (311.0 ms/batch)
+      | 2026-09-25 13:09:15.885 INFO: Fourth train loop:
+      | ##### Step: 3 Learning rate: 0.008 #####
+      | 2026-09-25 13:11:50.497 INFO: ##### Step: 3 Learning rate: 0.008 #####
+      | Epoch 1, Train Loss: 164638.8970, Val Loss: 5762.5743
+      | 2026-09-25 13:11:50.497 INFO: Epoch 1, Train Loss: 164638.8970, Val Loss: 5762.5743
+      | train_e/atom_mae: 0.006670
+      | 2026-09-25 13:11:50.498 INFO: train_e/atom_mae: 0.006670
+      | train_e/atom_rmse: 0.008187
+      | 2026-09-25 13:11:50.498 INFO: train_e/atom_rmse: 0.008187
+      | train_f_mae: 0.389503
+      | 2026-09-25 13:11:50.500 INFO: train_f_mae: 0.389503
+      | train_f_rmse: 0.531066
+      | 2026-09-25 13:11:50.500 INFO: train_f_rmse: 0.531066
+      | val_e/atom_mae: 0.001227
+      | 2026-09-25 13:11:50.501 INFO: val_e/atom_mae: 0.001227
+      | val_e/atom_rmse: 0.001482
+      | 2026-09-25 13:11:50.501 INFO: val_e/atom_rmse: 0.001482
+      | val_f_mae: 0.453336
+      | 2026-09-25 13:11:50.502 INFO: val_f_mae: 0.453336
+      | val_f_rmse: 0.614112
+      | 2026-09-25 13:11:50.502 INFO: val_f_rmse: 0.614112
+      |   block 8 w_e=1000: 154.6 s for 450 batches (343.6 ms/batch)
+      | 2026-09-25 13:11:50.511 INFO: Finished
+      | 2026-09-25 13:11:50.512 INFO: Number of trainable parameters: 43052
+  -> 20.5 min, 3600 batches, 341.5 ms/batch
+
+### cace-sr_sA: blocks [1, 2, 3, 4, 5, 6, 7] of 7 on cpod-1vg1a4d7wa0n [cuda]
+cace-sr_sA: 7 blocks scheduled, running blocks 1-7 (seed 1)
+  cd runs/cace-sr_sA && /root/venv310/bin/python ../../cace-sr/fit-cace-nnp.py 1 --smoke
+      | 2026-09-25 13:21:19.184 INFO: val_e/atom_rmse: 0.013280
+      | val_f_mae: 0.150451
+      | 2026-09-25 13:21:19.184 INFO: val_f_mae: 0.150451
+      | val_f_rmse: 0.188036
+      | 2026-09-25 13:21:19.184 INFO: val_f_rmse: 0.188036
+      |   block 6 w_e=1: 75.9 s for 450 batches (168.6 ms/batch)
+      | 2026-09-25 13:21:19.192 INFO: Third train loop:
+      | ##### Step: 2 Learning rate: 0.006 #####
+      | 2026-09-25 13:22:38.920 INFO: ##### Step: 2 Learning rate: 0.006 #####
+      | Epoch 1, Train Loss: 3725.9339, Val Loss: 5516.3827
+      | 2026-09-25 13:22:38.921 INFO: Epoch 1, Train Loss: 3725.9339, Val Loss: 5516.3827
+      | train_e/atom_mae: 0.009956
+      | 2026-09-25 13:22:38.921 INFO: train_e/atom_mae: 0.009956
+      | train_e/atom_rmse: 0.012240
+      | 2026-09-25 13:22:38.922 INFO: train_e/atom_rmse: 0.012240
+      | train_f_mae: 0.169114
+      | 2026-09-25 13:22:38.923 INFO: train_f_mae: 0.169114
+      | train_f_rmse: 0.228069
+      | 2026-09-25 13:22:38.924 INFO: train_f_rmse: 0.228069
+      | val_e/atom_mae: 0.014853
+      | 2026-09-25 13:22:38.925 INFO: val_e/atom_mae: 0.014853
+      | val_e/atom_rmse: 0.014908
+      | 2026-09-25 13:22:38.925 INFO: val_e/atom_rmse: 0.014908
+      | val_f_mae: 0.196205
+      | 2026-09-25 13:22:38.925 INFO: val_f_mae: 0.196205
+      | val_f_rmse: 0.257426
+      | 2026-09-25 13:22:38.926 INFO: val_f_rmse: 0.257426
+      |   block 7 w_e=10: 79.7 s for 450 batches (177.2 ms/batch)
+      | 2026-09-25 13:22:38.934 INFO: Finished
+      | 2026-09-25 13:22:38.934 INFO: Number of trainable parameters: 24572
+  -> 10.2 min, 3150 batches, 194.7 ms/batch
+
+========================================================================================
+chain                blocks  batches  minutes  ms/batch peak GPU MB
+cace-lr_sA                8     3600     20.5     341.5      3486.8
+cace-sr_sA                7     3150     10.2     194.7      1688.6
+
+the long-range term costs 1.75x the short-range arm (341.5 vs 194.7 ms/batch)

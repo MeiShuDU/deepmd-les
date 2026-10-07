@@ -1,0 +1,138 @@
+{
+  "model": {
+    "type": "deepmd_cace",
+    "arm": "lr",
+    "type_map": [
+      "O",
+      "H"
+    ],
+    "descriptor": {
+      "type": "se_a",
+      "rcut": 5.5,
+      "rcut_smth": 0.5,
+      "sel": [
+        39,
+        73
+      ],
+      "neuron": [
+        25,
+        50,
+        100
+      ],
+      "axis_neuron": 16,
+      "resnet_dt": false,
+      "seed": 1,
+      "type_one_side": false,
+      "precision": "float64"
+    },
+    "fitting_net": {
+      "n_layers": 3,
+      "n_hidden": [
+        32,
+        16
+      ],
+      "add_linear_nn": true,
+      "use_batchnorm": false
+    },
+    "long_range": {
+      "enabled": true,
+      "combine_potentials": false,
+      "charge_net": {
+        "n_layers": 3,
+        "n_hidden": [
+          24,
+          12
+        ],
+        "n_out": 1,
+        "bias": false
+      },
+      "ewald": {
+        "dl": 2.0,
+        "sigma": 1.0,
+        "remove_self_interaction": false
+      },
+      "charge_eq_latent": {
+        "enabled": true,
+        "regularization_weight": 10.0,
+        "total_charge": 0.0
+      }
+    }
+  },
+  "atomic_energies": {
+    "1": -187.6043857100553,
+    "8": -93.80219285502734
+  },
+  "loss": {
+    "energy_weight": 0.1,
+    "force_weight": 1000.0
+  },
+  "training": {
+    "training_data": {
+      "systems": [
+        "../../../../data/data_0",
+        "../../../../data/data_1",
+        "../../../../data/data_2"
+      ],
+      "batch_size": 2
+    },
+    "validation_data": {
+      "systems": [
+        "../../../../data/data_3"
+      ],
+      "batch_size": 4
+    },
+    "optimizer": {
+      "type": "adam",
+      "lr": 0.01,
+      "betas": [
+        0.99,
+        0.999
+      ]
+    },
+    "scheduler": {
+      "type": "step",
+      "step_size": 20,
+      "gamma": 0.5
+    },
+    "blocks": [
+      {
+        "energy_weight": 0.1,
+        "repeat": 5,
+        "epochs": 40,
+        "fresh_task": true,
+        "checkpoint": "model.pth"
+      },
+      {
+        "energy_weight": 1.0,
+        "repeat": 1,
+        "epochs": 100,
+        "fresh_task": false,
+        "checkpoint": "model-2.pth"
+      },
+      {
+        "energy_weight": 10.0,
+        "repeat": 1,
+        "epochs": 100,
+        "fresh_task": false,
+        "checkpoint": "model-3.pth"
+      },
+      {
+        "energy_weight": 1000.0,
+        "repeat": 1,
+        "epochs": 100,
+        "fresh_task": false,
+        "checkpoint": "model-4.pth"
+      }
+    ],
+    "seed": 10,
+    "device": "cuda",
+    "max_grad_norm": 10.0,
+    "warmup_steps": 5,
+    "ema": false,
+    "ema_start": 10,
+    "disp_freq": 1,
+    "save_freq": 10,
+    "screen_nan": false,
+    "output_dir": "."
+  }
+}

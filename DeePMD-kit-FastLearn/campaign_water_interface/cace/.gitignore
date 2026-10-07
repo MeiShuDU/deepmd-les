@@ -1,0 +1,8 @@
+# Model checkpoints: cace writes water-model*.pth and best_model.pth (~200 KB
+# each) plus a full-state checkpoint.pt every 10 epochs. All regenerable from the
+# arm script and the staged data, so they stay out of git.
+*.pt
+*.pth
+
+# editor leftovers
+*.swp

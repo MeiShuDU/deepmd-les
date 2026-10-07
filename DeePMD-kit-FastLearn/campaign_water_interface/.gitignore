@@ -1,0 +1,41 @@
+# Training artifacts. The pod run rsyncs these back, and each deepmd arm writes
+# thousands of checkpoints (8 blocks x up to 40 kept per block) - tracked they
+# would bloat the repo permanently for no benefit, since they are reproducible
+# from the committed configs and the committed data.
+#
+# What is deliberately NOT ignored: the generated configs themselves
+# (deepmd/runs/*/s*/input.yaml, segments.json, chain.sh, runs_smoke/**/input.yaml),
+# the runners, and each arm's timing.json - the cost record is a result, not
+# output. Those are the definition of the experiment and belong in git.
+#
+# The patterns exclude the CONTENTS of the block dirs (`s/**`), never the dirs
+# themselves: git does not descend into an excluded directory, so a `*/`-style
+# directory pattern followed by `!.../input.yaml` silently re-includes nothing.
+# (This file had exactly that bug: check-ignore confirmed input.yaml was ignored.)
+*/runs/*/s*/**
+!*/runs/*/s*/
+!*/runs/*/s*/input.yaml
+!*/runs/*/s*/segments.json
+!*/runs/*/s*/chain.sh
+*/runs_smoke/*/s*/**
+!*/runs_smoke/*/s*/
+!*/runs_smoke/*/s*/input.yaml
+!*/runs_smoke/*/s*/segments.json
+!*/runs_smoke/*/s*/chain.sh
+
+# cace's raw xyz input is a copy of the fit datarepo's slab-fps-n-500.xyz
+# (~82 MB): re-fetch it from the datarepo rather than store it here - the same
+# policy as cace-lr-fit-datarepo/.gitignore. The configs that read it stay
+# tracked, and the directory itself stays committable for small side files.
+cace/data/*.xyz
+
+# cace and deepmd leftovers that are pure output
+*.pth
+*.log
+les.log
+lcurve*.out
+out.json
+input_v2_compat.json
+
+# ... but the pod fix evidence is the record of what the pod ran, not output
+!pod/fix_evidence/*.log

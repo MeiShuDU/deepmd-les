@@ -1,0 +1,165 @@
+Descriptor-reuse A/B on the pod's hybridles tree
+================================================
+
+Question: the pod's deepmd-les tree predated commit b74a0bf (descriptor reuse), so
+HybridLESModel.forward built a second neighbour list and called the descriptor again
+instead of reusing the one the short-range path had already produced. Did that stale
+tree also compute anything DIFFERENT, or only more?
+
+Method: /tmp/les_ab.py builds the arm's model from one inline config, monkeypatches
+DescrptSeA.forward to count calls, and runs one forward of the same single frame.
+With no argument it saves the state dict; with a path it loads that state dict first,
+so the two trees are compared at identical weights on identical input.
+
+    CUDA_VISIBLE_DEVICES= OMP_NUM_THREADS=4 /root/venv310/bin/python /tmp/les_ab.py
+    CUDA_VISIBLE_DEVICES= OMP_NUM_THREADS=4 /root/venv310/bin/python /tmp/les_ab.py /tmp/les_ab_state.pt
+
+The stale tree was measured by temporarily restoring the 15 pre-update source files,
+then re-applying b74a0bf; the tree's final state was verified by md5 afterwards.
+
+------------------------------------------------------------------------------
+FIXED tree (b74a0bf), re-run 2026-10-07 on the patched pod tree
+------------------------------------------------------------------------------
+{
+ "descriptor_forward_calls_per_model_forward": 1,
+ "energy_eV": 195845.56081273785,
+ "force_norm_from_autograd": 3589088.6028092904,
+ "report_force_norm": 3589088.6028092904,
+ "virial_sum": 1535052.246083223,
+ "n_params": 169692,
+ "n_descriptor_state_keys": 58,
+ "first_descriptor_keys": [
+  "atomic_model.descriptor.sea.compress_data.0",
+  "atomic_model.descriptor.sea.compress_data.1"
+ ]
+}
+
+------------------------------------------------------------------------------
+STALE tree (pre-b74a0bf), measured 2026-10-06T19:10:17Z
+Transcribed from the session that performed the measurement; the same script, the
+same frame, and the state dict saved by the fixed-tree run above (load reported
+"missing: 0 unexpected: 0").
+------------------------------------------------------------------------------
+load missing: 0 unexpected: 0
+{
+ "descriptor_forward_calls_per_model_forward": 2,
+ "energy_eV": 195845.56081273785,
+ "force_norm_from_autograd": 3589088.6028092904,
+ "report_force_norm": 3589088.6028092904,
+ "virial_sum": 1535052.246083223,
+ "n_params": 169692,
+ "n_descriptor_state_keys": 58,
+ "first_descriptor_keys": [
+  "atomic_model.descriptor.sea.compress_data.0",
+  "atomic_model.descriptor.sea.compress_data.1"
+ ]
+}
+
+------------------------------------------------------------------------------
+Reading
+------------------------------------------------------------------------------
+Every physical number is bit-identical between the two trees; the only difference is
+that the stale tree does the descriptor work twice. Energy, force norm, virial sum,
+parameter count and descriptor state-dict key count all agree exactly, and the fixed
+tree's weights load into the stale tree with no missing and no unexpected keys, so no
+parameter was ever registered twice in either revision: neither defines
+`self.descriptor`, so the duplicate call could not duplicate weights. The cost was pure
+recomputation.
+
+Timing (/tmp/les_time.py: 9 GPU training-shaped iterations of forward + loss + Adam
+step, median of the last 5, measured 2026-10-06):
+
+    OLD (2 descriptor calls)  median 0.0894 s/step  (min 0.0723, max 0.0928)
+    NEW (1 descriptor call)   median 0.0718 s/step  (min 0.0592, max 0.0738)
+
+The medians differ by ~20%; the distributions overlap at the edges, so "about 20% on
+the median" is the claim and "strictly faster everywhere" is not.
+
+For reference, the arm that was trained on the stale tree (campaign_water_interface
+runs/deepmd-les_sB) recorded 0.1142 s/batch over 225,000 steps in its timing.json,
+against 0.0873-0.0880 s/batch for the sea arms at the same step budget. That is
+consistent with paying for the duplicate call, but it does not isolate it: that arm
+also ran a [240, 240, 240] fitter at rcut 6.0.
+
+------------------------------------------------------------------------------
+Corroboration from the real training run, 2026-10-07
+------------------------------------------------------------------------------
+The arm above was rebuilt as `deepmd-les-cace-sched` (same 1566-atom data, same
+225,000-step budget, same timing wrapper) and launched on the fixed tree. Its first
+block reported:
+
+    s1: 1696.2 s for 18000 steps (94.2 ms/batch)
+
+which sits at 0.0942 s/batch against the sea arms' 0.0873-0.0880 s/batch for the same
+step budget and the same data. Two readings, both worth keeping:
+
+  * The stale tree cost this campaign real time. The legacy `deepmd-les_sB` paid
+    0.1142 s/batch where the fixed arm pays 0.0942 on the same data - 17.5% less per
+    step. The confound is that the legacy arm also ran rcut 6.0 with a
+    [240, 240, 240] fitter, so this is corroboration, not an isolated measurement of
+    the duplicate call; the isolated measurement is the 0.0894 -> 0.0718 A/B above,
+    which is on 192-atom frames and so is not directly comparable in absolute terms.
+  * With the descriptor reused, the LES branch still costs ~7% per step over its own
+    short-range sibling (0.0942 against 0.0873-0.0880). That residual is the LES path
+    itself - the charge net, the Ewald sum, and the extra autograd graph - and it is
+    the honest overhead figure for the long-range channel, not the ~30% the stale
+    tree implied.
+
+Both figures include the same validation cadence (disp_freq 450 with numb_btch 50, so
+50 extra frames per 450 training steps), so they are comparable to each other.
+
+Backup of the pre-update tree, on the pod:
+    /root/les_preupdate_backup_20261007/pod_sources_before.tar   (15 files, plain tar)
+    /root/les_preupdate_backup_20261007/FILES.txt                (the file list)
+Restore by extracting the tarball at the repo root.
+
+Archive of the patched tree the arm actually trained on, taken 2026-10-07 after the
+chain finished (`pod_sources_after.tgz`, gzip, same 15 files, extracted from the repo
+root `deepmd-les/`, which is what the paths in FILES.txt are relative to):
+    /root/les_preupdate_backup_20261007/pod_sources_after.tgz    (on the pod)
+    fix_evidence/pod_sources_after.tgz                           (pulled home)
+Both archives are copied into this directory so they outlive the pod. The patched
+state is reproducible from local `b74a0bf`; the archive is here so that "what the
+arm ran on" is a file rather than an argument.
+
+------------------------------------------------------------------------------
+The `les` package: pod revision vs local, on a trained checkpoint
+------------------------------------------------------------------------------
+
+The patch above covered the deepmd files but not the `les` package, and the two
+trees' `les` packages are not the same revision: `les/src/les/les.py` differs
+(pod 2026-09-20 01:58) and local has `module/charge_eq.py` and
+`tests/test_charge_eq.py`, which the pod does not.
+
+Read as a diff, every difference is one of two kinds and neither is reachable here:
+
+  * `ewald.py` - the pod's file is byte-identical to local in every region it has.
+    Local only adds `compute_coulomb_matrix`, used solely by charge_eq. One diff
+    hunk, delete-to-match, zero pod-only lines.
+  * `les.py` - the differences are the `charge_eq` / `charge_eq_debug` /
+    `q_nn_debug` / `e_lr_graph_debug` feature set and its logging plumbing, all
+    default-off. The arm's `les_params` sets none of those keys (checked against
+    the generated input.yaml: local_charge, n_hidden, n_layers, add_linear_nn,
+    sigma, dl, remove_self_interaction, output_scaling_factor, lr_weight, verbose,
+    log_freq - and every one of them is read identically by both revisions).
+    `lr_weight` is not in `les.py` at all; it is read by the patched
+    `hybridles_model.py:82`, which is the same file on both sides.
+
+Inspection is not the standard the rest of this work is held to, so it was
+measured: `les_rev_check.py` (beside this log) loads the arm's own
+`s8/model.ckpt-45000.pt`, evaluates two validation frames on CPU, and prints E, two
+force vectors, |F| and the virial at full float precision. Run with
+`DP_INTERFACE_PREC=low` on both trees (these checkpoints were trained in fp32) and
+the same interpreter settings:
+
+    E            = -277.25263848900795, -277.9975953698158
+    F[0,0]       = -0.06409169733524323, 1.078971028327942, -1.1022361516952515
+    F[1,-1]      = 0.2632662355899811, 0.9581760168075562, 0.7262380719184875
+    |F|          = 74.83953094482422
+    V sum        = -378.2880769688636
+
+Identical to the last digit on both trees (`les` module file in both runs:
+`/root/app/deepmd-les/deepmd-les/les/src/les/__init__.py`, each side's own copy).
+So the pod's older `les` and local's current one are the same function for this
+arm's config, and scoring these checkpoints locally measures the model that was
+trained rather than a model plus a kernel revision difference.

@@ -1,0 +1,63 @@
+{
+  "recorded_utc": "2026-09-20T09:09:55+00:00",
+  "model": "../cace-lr-fit-datarepo/BingqingCheng-cace-lr-fit-0211150/fit-water-timing/fit-water-mp0-lr-FeatureAdd/best_model.pth",
+  "model_sha256": "2345d4ad622c98a51bd2384b5b90a3bb6ab6e176f7862a3965e24169c0d33ef6",
+  "cace_provenance": {
+    "imported_from": "/root/app/cace-ts/cace/__init__.py",
+    "version": null,
+    "checkout": "/root/app/cace-ts",
+    "commit": "6256b8e1f586f2f6bed2003688b7c54eb1ff3f2d",
+    "dirty": true
+  },
+  "lr_mix_weight": 1.0,
+  "valid_split": "water/valid/set.000",
+  "n_frames": 159,
+  "n_atoms": 192,
+  "targets_agree_with_split": true,
+  "e_target_peratom_rms_ev": 0.07430707585063864,
+  "f_target_rms_ev_per_a": 2.11046512080324,
+  "lr_energy_ev_per_frame": {
+    "mean": 1.4530624151229858,
+    "std": 1.402998685836792,
+    "min": 0.21420636773109436,
+    "max": 6.677420139312744
+  },
+  "mechanism": {
+    "e_lr_std_over_target_std": 0.0983390212059021,
+    "e_sr_std_over_target_std": 0.9398424625396729,
+    "corr_e_sr_e_lr": 0.59855589446517,
+    "f_lr_rms_over_f_tot_rms": 0.052576801435532616,
+    "q_out_channels": 1,
+    "net_charge_mean_per_frame": -19.741453170776367,
+    "q_mean_by_element": {
+      "8": 0.24362584948539734,
+      "1": -0.2760430574417114
+    }
+  },
+  "arm_defs": {
+    "cace_lrnew": "CACE_energy / CACE_forces (combined, short + long range)",
+    "cace_lrnew_sr": "E_tot - 1 * ewald_potential (long range removed)"
+  },
+  "metrics": {
+    "cace_lrnew": {
+      "e_rmse": 0.0013720688719404959,
+      "e_mae": 0.0007096654378475285,
+      "e_r2": 0.9996590493828531,
+      "f_rmse": 0.0627001153374209,
+      "f_mae": 0.03359249115059139,
+      "f_r2": 0.9991173666720509,
+      "e_rmse_pct_of_target": 1.8464848148491682,
+      "f_rmse_pct_of_target": 2.9709145495641893
+    },
+    "cace_lrnew_sr": {
+      "e_rmse": 0.010478754174197878,
+      "e_mae": 0.007509462449090028,
+      "e_r2": 0.9801134721859367,
+      "f_rmse": 0.11952130645413116,
+      "f_mae": 0.06531952693255569,
+      "f_r2": 0.9967927389794579,
+      "e_rmse_pct_of_target": 14.101960081514655,
+      "f_rmse_pct_of_target": 5.6632685030417145
+    }
+  }
+}

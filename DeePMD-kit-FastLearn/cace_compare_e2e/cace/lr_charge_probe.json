@@ -1,0 +1,170 @@
+{
+  "recorded_utc": "2026-09-20T11:39:37+00:00",
+  "npz": "cace/cace_lrnew_valid_pred.npz",
+  "n_frames": 159,
+  "n_atoms": 192,
+  "note": "The learned q is a latent variable: only the Ewald energy and forces see it, and they are bilinear, so individual values are not identifiable. What this probe shows is that the variation it uses is the local protonation state, not noise.",
+  "geometry": {
+    "cell_diagonal_a": {
+      "min": 9.25674876,
+      "median": 12.86818214,
+      "max": 16.02697849,
+      "unique": 142
+    },
+    "min_interatomic_a": 0.7522997872842019,
+    "o_h_bond_a": {
+      "n": 20193,
+      "min": 0.7522997872842019,
+      "median": 0.9738293771223865,
+      "max": 1.2985159502483625
+    },
+    "o_with_exactly_two_h_pct": 96.0495283018868,
+    "o_with_close_o_below_2a_pct": 0.0589622641509434
+  },
+  "charge": {
+    "n_o_atom_frames": 10176,
+    "regular_water_mean_q": 0.22042453289031982,
+    "regular_water_std_q": 0.3491484820842743,
+    "regular_water_p1_p99": [
+      -0.6013471484184265,
+      1.1306883096694946
+    ],
+    "regular_water_min_max": [
+      -3.3206803798675537,
+      2.1975197792053223
+    ],
+    "regular_water_pct_below_zero": 22.871469504707324,
+    "ladder_by_proton_count": {
+      "0": {
+        "n": 7,
+        "mean_q": 3.3435189723968506,
+        "std_q": 0.9452973008155823,
+        "mean_abs_q": 3.3435189723968506
+      },
+      "1": {
+        "n": 270,
+        "mean_q": 1.9611133337020874,
+        "std_q": 0.9457793831825256,
+        "mean_abs_q": 1.9991183280944824
+      },
+      "2": {
+        "n": 9774,
+        "mean_q": 0.21943366527557373,
+        "std_q": 0.35595113039016724,
+        "mean_abs_q": 0.31791892647743225
+      },
+      "3": {
+        "n": 125,
+        "mean_q": -1.7481058835983276,
+        "std_q": 0.82551109790802,
+        "mean_abs_q": 1.750399112701416
+      }
+    },
+    "ladder_cutoff_check": {
+      "1.2": {
+        "nH_0_mean_q": 2.911867141723633,
+        "nH_1_mean_q": 1.505267858505249,
+        "nH_2_mean_q": 0.2093990594148636,
+        "nH_3_mean_q": -2.0716946125030518
+      },
+      "1.3": {
+        "nH_0_mean_q": 3.3435189723968506,
+        "nH_1_mean_q": 1.9611133337020874,
+        "nH_2_mean_q": 0.21943366527557373,
+        "nH_3_mean_q": -1.7481058835983276
+      },
+      "1.4": {
+        "nH_0_mean_q": 3.8163533210754395,
+        "nH_1_mean_q": 2.2719273567199707,
+        "nH_2_mean_q": 0.23158681392669678,
+        "nH_3_mean_q": -1.4169328212738037
+      },
+      "1.5": {
+        "nH_0_mean_q": 4.380175590515137,
+        "nH_1_mean_q": 2.396310806274414,
+        "nH_2_mean_q": 0.2431907057762146,
+        "nH_3_mean_q": -0.7959731221199036
+      }
+    },
+    "smooth_coordination_corr": -0.7324155382513823,
+    "h_by_bridge_count": {
+      "64": {
+        "n": 20352,
+        "mean_q": -0.27604302763938904
+      }
+    },
+    "negation_is_exact_gauge_not_checked_here": "E(-q) = E(q) is exact because the Ewald energy is bilinear in q; the kernel test confirms it with max|dE| = 0"
+  },
+  "compensation": {
+    "pct_atom_frames_abs_q_gt_1": 2.2176362683438153,
+    "abs_q_gt_1_neighbour_sum_mean": -2.386091709136963,
+    "corr_q_vs_neighbour_sum_all": -0.17750773147155213,
+    "corr_q_vs_neighbour_sum_abs_q_gt_1": -0.39458646722171836,
+    "corr_q_vs_neighbour_sum_abs_q_le_1": -0.1342129683635737
+  },
+  "extremes": [
+    {
+      "which": "max_O",
+      "q": 4.782161712646484,
+      "frame": 3,
+      "protons_on_O": 0,
+      "nearest_O_a": 2.2429167080076966,
+      "nearest_H_a": 1.630169570577188,
+      "cell_diagonal_a": 12.10015021
+    },
+    {
+      "which": "min_O",
+      "q": -4.96766996383667,
+      "frame": 38,
+      "protons_on_O": 2,
+      "nearest_O_a": 1.60513992922207,
+      "nearest_H_a": 0.9986839490236125,
+      "cell_diagonal_a": 12.09549345
+    }
+  ],
+  "kernel": {
+    "clip_all_05": {
+      "mean": 0.550581028907554,
+      "std": 0.2525139490385043,
+      "max_abs_dE": 5.0289067029953,
+      "rms_dE": 1.4846314651519978,
+      "corr_with_ref": 0.9067923736282303
+    },
+    "clip_tail_1": {
+      "mean": 0.8875153820094822,
+      "std": 0.6139786294952231,
+      "max_abs_dE": 3.6422393321990967,
+      "rms_dE": 0.9994345557885927,
+      "corr_with_ref": 0.9672205367146325
+    },
+    "zero_tail": {
+      "mean": 0.6382892915287858,
+      "std": 0.3032584409987257,
+      "max_abs_dE": 5.162832021713257,
+      "rms_dE": 1.461099592920767,
+      "corr_with_ref": 0.6926607841086898
+    },
+    "zero_random": {
+      "mean": 1.4003639087174673,
+      "std": 1.288355021669658,
+      "max_abs_dE": 0.8812732696533203,
+      "rms_dE": 0.18763936163549041,
+      "corr_with_ref": 0.9946645734322151
+    },
+    "no_dc": {
+      "mean": 1.3941541308501981,
+      "std": 1.3644201003209662,
+      "max_abs_dE": 0.34455394744873047,
+      "rms_dE": 0.08585724722597576,
+      "corr_with_ref": 0.9993697467457404
+    },
+    "neg": {
+      "mean": 1.4530624933775116,
+      "std": 1.4029987182995418,
+      "max_abs_dE": 0.0,
+      "rms_dE": 0.0,
+      "corr_with_ref": 1.0
+    },
+    "signal_std": 1.4029987182995418
+  }
+}

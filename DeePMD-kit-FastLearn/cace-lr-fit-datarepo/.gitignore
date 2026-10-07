@@ -1,0 +1,6 @@
+# Third-party raw datasets (BingqingCheng-cace-lr-fit-0211150, ~266 MB of xyz).
+# Downloaded, not produced here: re-fetch from the upstream datarepo rather than
+# store it in git. The scripts that read it live in DeePMD-kit-FastLearn/ and
+# record the expected layout.
+*
+!.gitignore

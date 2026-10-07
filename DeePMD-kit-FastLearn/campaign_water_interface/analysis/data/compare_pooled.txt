@@ -1,0 +1,27 @@
+pooled RMSE over the 50-frame validation split, final checkpoint, one definition for every arm
+
+arm                        family   rmse_e/atom     rmse_f A/B spread E A/B spread F
+------------------------------------------------------------------------------------
+cace-lr                    cace    8.365489e-05    0.01966       1.047x       1.001x   (A, B)
+cace-sr                    cace    7.923856e-05    0.02708       1.065x       1.007x   (A, B)
+deepmd-les-cace-sched      deepmd  1.580068e-04    0.04193       1.046x       1.021x   (A, B)
+deepmd-les                 deepmd  1.896261e-04    0.04558       1.209x       1.098x   (A, B)
+deepmd                     deepmd  1.835144e-04    0.04921       1.131x       1.040x   (A, B)
+sea-lr                     sea     1.427912e-04    0.03845       1.061x       1.026x   (A, B)
+sea-sr                     sea     1.498506e-04    0.04337       1.122x       1.015x   (A, B)
+
+pairwise ratios (< 1 means the first arm is better on that metric). 'disjoint' is whether the two replicates' values
+are separated; at n=2 that is the only significance statement available, and a weak one:
+  setting effect         deepmd-les-cace-sched / deepmd-les:  force 0.9200  energy 0.8333   disjoint F/E: yes/yes
+  implementation effect  deepmd-les-cace-sched / sea-lr:  force 1.0905  energy 1.1066   disjoint F/E: yes/yes
+  vs sibling SR          deepmd-les-cace-sched / sea-sr:  force 0.9668  energy 1.0544   disjoint F/E: yes/no
+  LR payoff, cace        sea-sr / sea-lr:  force 1.1280  energy 1.0494   disjoint F/E: yes/no
+  LR payoff, deepmd      deepmd / deepmd-les:  force 1.0797  energy 0.9678   disjoint F/E: yes/no
+
+offset / scale, deepmd family (an RMSE alone cannot say displaced vs noisy):
+  deepmd                     sA  offset -7.135e-05 eV/atom  slope 0.9869  rmse_e/atom 1.947817e-04
+  deepmd                     sB  offset +1.469e-05 eV/atom  slope 1.0011  rmse_e/atom 1.722471e-04
+  deepmd-les                 sA  offset +1.808e-05 eV/atom  slope 1.0039  rmse_e/atom 2.075418e-04
+  deepmd-les                 sB  offset -4.320e-06 eV/atom  slope 0.9994  rmse_e/atom 1.717104e-04
+  deepmd-les-cace-sched      sA  offset +1.567e-05 eV/atom  slope 0.9978  rmse_e/atom 1.615948e-04
+  deepmd-les-cace-sched      sB  offset -1.481e-05 eV/atom  slope 1.0115  rmse_e/atom 1.544189e-04

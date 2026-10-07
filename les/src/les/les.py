@@ -18,6 +18,7 @@ from .module import (
     AtomicAlpha,
     type2number,
 )
+from .module.charge_eq import project_zero_mean
 from .util.scatter import scatter_sum
 
 __all__ = ['Les']
@@ -40,7 +41,8 @@ class Les(nn.Module):
 
     __constants__ = ['use_fixed_atomic_charges', 'use_atomic_alpha', 'use_atomwise',
                      'use_epsilon_r_scaling', 'is_local_mode', 'is_freeze_mode',
-                     'use_initial_guess', 'use_claim_total_charge']
+                     'use_initial_guess', 'use_claim_total_charge', 'use_charge_eq',
+                     'charge_eq_debug', 'q_nn_debug', 'e_lr_graph_debug']
     def __init__(self, les_arguments: Union[Dict[str, Any], str] = {}):
         """
         LES model for long-range interactions
@@ -140,6 +142,11 @@ class Les(nn.Module):
         self.n_hidden = les_arguments.get('n_hidden', [32, 16])
         self.add_linear_nn = les_arguments.get('add_linear_nn', True)
         self.output_scaling_factor = les_arguments.get('output_scaling_factor', 0.1)
+        self.use_charge_eq = bool(les_arguments.get('charge_eq', False))
+        self.charge_eq_debug = bool(les_arguments.get('charge_eq_debug', False))
+        self.q_nn_debug = bool(les_arguments.get('q_nn_debug', False))
+        self.e_lr_graph_debug = bool(les_arguments.get('e_lr_graph_debug', False))
+        self.regularization_weight = float(les_arguments.get('regularization_weight', 0.1))
 
         self.sigma = les_arguments.get('sigma', 1.0)
         self.dl = les_arguments.get('dl', 2.0)
@@ -207,15 +214,27 @@ class Les(nn.Module):
                 "freeze_charge already fixes the charges; it cannot be combined with "
                 "use_fixed_charges / initial_guess."
             )
+        if self.use_charge_eq and self.is_freeze_mode:
+            raise ValueError("charge_eq cannot be combined with freeze_charge")
+        if self.use_charge_eq and self.regularization_weight <= 0.0:
+            raise ValueError("regularization_weight must be positive when charge_eq is enabled")
+        if self.charge_eq_debug and not self.use_charge_eq:
+            raise ValueError("charge_eq_debug requires charge_eq to be enabled")
 
-        self.verbose = les_arguments.get('verbose', False)
-        if self.verbose:
+        self.verbose = bool(les_arguments.get('verbose', False))
+        if self.charge_eq_debug or self.q_nn_debug or self.e_lr_graph_debug:
+            logger.setLevel(logging.DEBUG)
+        if (self.verbose or self.charge_eq_debug or self.q_nn_debug
+            or self.e_lr_graph_debug):
             self._log_step_counter = 0
             self.log_freq = les_arguments.get('log_freq', 100)
             # log_freq 为非正数时按「关闭日志」处理: 日志里的取模需要正周期,
             # 否则 log_freq=0 会 ZeroDivisionError 而非安静地不打日志。
             if self.log_freq <= 0:
                 self.verbose = False
+                self.charge_eq_debug = False
+                self.q_nn_debug = False
+                self.e_lr_graph_debug = False
 
     @torch.jit.unused
     def _type_table(self, values) -> torch.Tensor:
@@ -250,6 +269,10 @@ class Les(nn.Module):
             'is_freeze_mode': False,
             'use_initial_guess': False,
             'use_claim_total_charge': False,
+            'use_charge_eq': False,
+            'charge_eq_debug': False,
+            'q_nn_debug': False,
+            'e_lr_graph_debug': False,
             'claim_total_charge_value': 0.0,
             'ntypes': 0,
         }.items():
@@ -268,36 +291,62 @@ class Les(nn.Module):
                            atomic_numbers: Optional[torch.Tensor],
                            E_lr: Optional[torch.Tensor],
                            compute_energy: bool,
+                           q_reference: Optional[torch.Tensor],
                            ) -> None:
         # 日志/调试分支: 含 f-string 格式、逐元素统计、E_lr.grad_fn 等纯 Python
         # 片段, 由 @torch.jit.unused 隔离, 不进入冻结模型的计算图。
-        if not self.verbose:
+        if not (self.verbose or self.charge_eq_debug or self.q_nn_debug
+                or self.e_lr_graph_debug):
             return
         self._log_step_counter += 1
-        if self._log_step_counter % self.log_freq == 0 or self._log_step_counter == 1:
-            logger.info(f'Training steps :{self._log_step_counter}')
-            if latent_charges is not None:
-                logger.info(f"latent_charges mean: {latent_charges.mean().item()}, std: {latent_charges.std().item()}")
+        should_log = self._log_step_counter % self.log_freq == 0 or self._log_step_counter == 1
+        if should_log:
+            step_logger = logger.info if self.verbose else logger.debug
+            step_logger(f'Training steps :{self._log_step_counter}')
+            if self.verbose and latent_charges is not None:
                 if atomic_numbers is not None:
-                    logger.info(f"\tQ_MEAN\tQ_STD")
+                    logger.info("latent_charges by element: Z\tmean\tvariance")
                     for am in torch.unique(atomic_numbers):
                         mask = (atomic_numbers == am)
                         q_am = latent_charges[mask]
-                        mean_q = q_am.mean(dim=0)
-                        std_q = q_am.std(dim=0)
-                        logger.info(f"{am}\t{mean_q}\t{std_q}")
+                        mean_q = q_am.detach().mean(dim=0).cpu().tolist()
+                        variance_q = q_am.detach().var(dim=0, unbiased=False).cpu().tolist()
+                        logger.info(f"Z={int(am.item())}\tmean={mean_q}\tvariance={variance_q}")
                 else:
-                    logger.info("atomic_numbers is None; skip per-element Q stats")
-            if compute_energy:
-                logger.info(f"E_lr = {E_lr.item() if E_lr.numel()==1 else E_lr}")
-        if self._log_step_counter % self.log_freq == 0 or self._log_step_counter == 1:
-            logger.info("Q layer params (norm summary):")
+                    logger.info(
+                        "atomic_numbers is None; latent_charges mean=%s variance=%s",
+                        latent_charges.detach().mean(dim=0).cpu().tolist(),
+                        latent_charges.detach().var(dim=0, unbiased=False).cpu().tolist(),
+                    )
+            if self.charge_eq_debug:
+                if q_reference is not None and latent_charges is not None and atomic_numbers is not None:
+                    for label, charges in (("q_r", q_reference), ("q", latent_charges)):
+                        logger.debug("charge_eq_debug %s by element: Z\tmean\tstd", label)
+                        for am in torch.unique(atomic_numbers):
+                            q_element = charges[atomic_numbers == am].detach()
+                            mean_q = q_element.mean(dim=0).cpu().tolist()
+                            std_q = q_element.std(dim=0, unbiased=False).cpu().tolist()
+                            logger.debug(
+                                "%s\tZ=%d\tmean=%s\tstd=%s",
+                                label,
+                                int(am.item()),
+                                mean_q,
+                                std_q,
+                            )
+                else:
+                    logger.debug(
+                        "charge_eq_debug requires q_r, q, and atomic_numbers for per-element stats"
+                    )
+            if self.verbose and compute_energy and E_lr is not None:
+                logger.info("E_lr = %s", E_lr.detach().cpu().tolist())
+        if self.q_nn_debug and should_log:
+            logger.debug("Q NN params (norm summary):")
             for name, param in self.named_parameters():
                 pnorm = param.detach().norm().item() if param.numel() else 0.0
                 frozen = "frozen" if not param.requires_grad else "train"
-                logger.info(f"  {name}: |w|={pnorm:.6e} ({frozen})")
-            if compute_energy:
-                logger.info(f"E_lr graph : {E_lr.grad_fn}")
+                logger.debug("  %s: |w|=%.6e (%s)", name, pnorm, frozen)
+        if self.e_lr_graph_debug and should_log and compute_energy and E_lr is not None:
+            logger.debug("E_lr graph: %s", E_lr.grad_fn)
 
     def forward(self,
                positions: torch.Tensor, # [n_atoms, 3]
@@ -356,6 +405,7 @@ class Les(nn.Module):
             raise ValueError("Either desc or latent_charges must be provided")
         # Optional[Tensor] 精化为 Tensor: TorchScript 需要后续的 q 入参类型确定
         assert latent_charges is not None
+        q_reference: Optional[torch.Tensor] = None
 
         # atomic_types->atomic_numbers 走 Python dict 查表 (type2number), 逻辑本体在
         # @torch.jit.unused 方法中, 编译期不参与; 冻结链路直接传 atomic_numbers。
@@ -384,7 +434,7 @@ class Les(nn.Module):
         # 方案 2 (omega*(Q-S)^2 正则) 需要把惩罚项送进 deepmd 的 loss, 会让 eval 的
         # 能量带上偏移; 方案 3 (只更新 q_r 再回写 q) 与方案 1 在数学上等价 (投影矩阵
         # 幂等), 却多一份状态管理。故取方案 1。
-        if self.use_claim_total_charge:
+        if self.use_claim_total_charge and not self.use_charge_eq:
             nframes = int(batch.max().item()) + 1
             counts = torch.bincount(batch, minlength=nframes).to(latent_charges.dtype)
             counts = _broadcast_per_atom(counts, latent_charges)
@@ -399,8 +449,42 @@ class Les(nn.Module):
             elif latent_alphas.dim() == 3:
                 latent_alphas = latent_alphas + baseline_alphas[:,None,None] * torch.eye(3, device=baseline_alphas.device).unsqueeze(0) # [n_atoms, 3, 3]
 
-        # compute the long-range interactions
-        if compute_energy:
+        # charge_eq solves the charge response per frame using the Ewald matrix.
+        if self.use_charge_eq:
+            if (latent_dipoles is not None or latent_quads is not None
+                    or latent_kappas is not None or latent_alphas is not None):
+                raise ValueError("charge_eq currently supports charge-only Ewald interactions")
+            if self.charge_eq_debug:
+                q_reference = latent_charges
+            q_equilibrium = latent_charges.clone()
+            frame_energies: List[torch.Tensor] = []
+            target_charge = (
+                self.claim_total_charge_value if self.use_claim_total_charge else 0.0
+            )
+            for frame in torch.unique(batch).long():
+                mask = batch == frame
+                frame_cell = cell[frame] if cell is not None else None
+                coulomb_matrix = self.ewald.compute_coulomb_matrix(
+                    positions[mask], frame_cell
+                )
+                q_frame = project_zero_mean(
+                    latent_charges[mask],
+                    coulomb_matrix,
+                    self.regularization_weight,
+                    target_charge,
+                )
+                q_equilibrium[mask] = q_frame
+                if compute_energy:
+                    q_flat = q_frame.reshape(-1)
+                    frame_energy = 0.5 * torch.dot(
+                        q_flat, torch.mv(coulomb_matrix, q_flat)
+                    )
+                    frame_energies.append(frame_energy.reshape(1))
+            latent_charges = q_equilibrium
+            E_lr = torch.cat(frame_energies) if compute_energy else None
+            q_induced = None
+            u_induced = None
+        elif compute_energy:
             E_lr, q_induced, u_induced = self.ewald(q=latent_charges,
                               u=latent_dipoles,
                               kappa=latent_kappas,
@@ -446,7 +530,9 @@ class Les(nn.Module):
         if torch.jit.is_scripting():
             pass
         else:
-            self._log_verbose_stats(latent_charges, atomic_numbers, E_lr, compute_energy)
+            self._log_verbose_stats(
+                latent_charges, atomic_numbers, E_lr, compute_energy, q_reference
+            )
 
         output = {
             'E_lr': E_lr,

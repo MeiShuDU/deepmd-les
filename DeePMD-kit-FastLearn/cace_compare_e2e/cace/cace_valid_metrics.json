@@ -1,0 +1,63 @@
+{
+  "recorded_utc": "2026-09-20T09:08:34+00:00",
+  "model": "cace/best_model.pth",
+  "model_sha256": "654f3456a821f6d5530652a923f5c5f5148554dc34517770feafbb20009e5584",
+  "cace_provenance": {
+    "imported_from": "/root/app/cace/cace/__init__.py",
+    "version": null,
+    "checkout": "/root/app/cace",
+    "commit": "3f1a66552684d7f31710d5f9b98e8d56d53eb6a0",
+    "dirty": false
+  },
+  "lr_mix_weight": 0.01,
+  "valid_split": "water/valid/set.000",
+  "n_frames": 159,
+  "n_atoms": 192,
+  "targets_agree_with_split": true,
+  "e_target_peratom_rms_ev": 0.07430707585063864,
+  "f_target_rms_ev_per_a": 2.11046512080324,
+  "lr_energy_ev_per_frame": {
+    "mean": 0.08103775978088379,
+    "std": 0.026433410122990608,
+    "min": 0.042423050850629807,
+    "max": 0.16791754961013794
+  },
+  "mechanism": {
+    "e_lr_std_over_target_std": 1.852771129051689e-05,
+    "e_sr_std_over_target_std": 0.8757724165916443,
+    "corr_e_sr_e_lr": 0.619436518667951,
+    "f_lr_rms_over_f_tot_rms": 7.8134456161487e-06,
+    "q_out_channels": 4,
+    "net_charge_mean_per_frame": -5.1732378005981445,
+    "q_mean_by_element": {
+      "8": 1.5810582637786865,
+      "1": -0.8309450745582581
+    }
+  },
+  "arm_defs": {
+    "cace": "CACE_energy / CACE_forces (combined, short + long range)",
+    "cace_sr": "E_tot - 0.01 * ewald_potential (long range removed)"
+  },
+  "metrics": {
+    "cace": {
+      "e_rmse": 0.04397071812806328,
+      "e_mae": 0.0417709992765142,
+      "e_r2": 0.6498398055726367,
+      "f_rmse": 0.1656719786063882,
+      "f_mae": 0.1090406507975338,
+      "f_r2": 0.9938377152742471,
+      "e_rmse_pct_of_target": 59.17433518235447,
+      "f_rmse_pct_of_target": 7.850022109976101
+    },
+    "cace_sr": {
+      "e_rmse": 0.04397515614826386,
+      "e_mae": 0.041775219628215954,
+      "e_r2": 0.6497691177828088,
+      "f_rmse": 0.16568714861947056,
+      "f_mae": 0.10905093268133655,
+      "f_r2": 0.9938365867041582,
+      "e_rmse_pct_of_target": 59.18030772285585,
+      "f_rmse_pct_of_target": 7.850740909492515
+    }
+  }
+}

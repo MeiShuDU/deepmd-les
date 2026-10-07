@@ -1,0 +1,6 @@
+arm	step	rmse_e_peratom	rmse_f	natoms	nframes
+deepmd-les-cace-sched_sA	18000	2.19475807e-03	7.00355173e-02	1566	50
+deepmd-les-cace-sched_sA	90000	9.94075779e-04	4.75904011e-02	1566	50
+deepmd-les-cace-sched_sA	135000	4.55065492e-04	4.24149667e-02	1566	50
+deepmd-les-cace-sched_sA	180000	1.83536452e-04	4.22169858e-02	1566	50
+deepmd-les-cace-sched_sA	225000	1.61601319e-04	4.23769344e-02	1566	50

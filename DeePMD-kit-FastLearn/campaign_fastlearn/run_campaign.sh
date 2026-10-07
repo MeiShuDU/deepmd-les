@@ -84,6 +84,16 @@ jobs_list() {
   if [ "$FAMILY" = all ] || [ "$FAMILY" = deepmd ]; then
     for rundir in "$CAMPAIGN"/deepmd/runs/*/; do
       [ -d "$rundir" ] || continue
+      # Only a native `dp --pt train` arm owns an input.yaml in its run dir. The
+      # chained arms (deepmd-*-cace-sched_s*) keep theirs in per-block s1..s8
+      # subdirs and the deepmd_cace arm (deepmd-cace-eq_sA) uses input.json; both
+      # have their own runners. Claiming them here would only cd into their
+      # directory, fail on the missing file and leave a FAILED marker plus a
+      # train.log behind, which reads as a broken arm in the summary below.
+      if [ ! -f "$rundir/input.yaml" ]; then
+        echo "skip   $(basename "${rundir%/}") (no input.yaml; not a native deepmd arm)" >&2
+        continue
+      fi
       printf '%s|deepmd|%s\n' "$(basename "${rundir%/}")" "${rundir%/}"
     done
   fi
