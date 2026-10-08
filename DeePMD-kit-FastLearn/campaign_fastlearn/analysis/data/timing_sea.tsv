@@ -1,5 +1,0 @@
-arm	replicate	host	device	blocks_done	blocks_total	total_steps	total_seconds	s_per_batch	lr_premium_vs_sr
-deepmd-cace-sched	sA	cpod-1vg1a4d7wa0n	gpu	8	8	80000	4472.06	0.055901	1.0000
-deepmd-cace-sched	sB	cpod-1vg1a4d7wa0n	gpu	8	8	80000	4513.31	0.056416	1.0000
-deepmd-les-cace-sched	sA	cpod-1vg1a4d7wa0n	gpu	8	8	80000	9332.48	0.116656	2.0868
-deepmd-les-cace-sched	sB	cpod-1vg1a4d7wa0n	gpu	8	8	80000	9339.35	0.116742	2.0693
