@@ -68,7 +68,7 @@ their grand total; that config was revised to `n_out=1` before the run.)
     python run_deepmd_cace.py --arm sea-lr-eq --rep A
 
 which runs `python -m deepmd_cace input.json` in this directory (with
-`PYTHONPATH=<repo>/workspace` and `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`),
+`PYTHONPATH=<repo>/desc_bridging` and `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`),
 writes `blocks.json` / `timing.json` / `train.log` here, and both `best_model.pth`
 and `water-model*.pth` per the schedule's `checkpoint` keys.
 
@@ -76,7 +76,7 @@ and `water-model*.pth` per the schedule's `checkpoint` keys.
 
 ## Scoring
 
-    cd <repo>/workspace
+    cd <repo>/desc_bridging
     python check_bec_arm.py --ckpt ../DeePMD-kit-FastLearn/campaign_water_interface/deepmd/runs/sea-lr-eq_sA/best_model.pth --frames 5
 
 `check_bec_arm.py` reports both the head's proposal `q` and the kernel's charges
@@ -129,7 +129,7 @@ somewhere else entirely.
 
 ## Operator-level BEC preview (from before the run)
 
-`workspace/check_bec_eq.py` applies `ChargeEqLatent(w=10)` to the **trained
+`desc_bridging/check_bec_eq.py` applies `ChargeEqLatent(w=10)` to the **trained
 `sea-lr_sA` head** at inference, so the mapping `BEC(q_r) -> BEC(q_eq)` can be
 read off without retraining. It is a diagnostic of the operator at a fixed head,
 and its headline result (that equalization alone does not change the sign) was

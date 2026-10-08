@@ -5,6 +5,11 @@ PyTorch's existing `DescrptSeA` descriptor and CACE's existing graph data,
 atomwise heads, force differentiation, losses, and `TrainingTask`.
 It does not modify or fork either dependency.
 
+The package lives in `desc_bridging/` at the repository root, which is why the
+commands below set `PYTHONPATH=desc_bridging` and run from that root.
+It is under development; the repository README states its status and the
+contributions of the upstream projects it builds on.
+
 ## Requirements
 
 Use an environment where the DeepMD-kit PyTorch backend, CACE, ASE, NumPy, and
@@ -40,7 +45,7 @@ sample, matching the campaign fitting scripts.
 To split one labeled DeepMD system deterministically:
 
 ```bash
-PYTHONPATH=workspace python -m deepmd_cace.split_dataset path/to/system \
+PYTHONPATH=desc_bridging python -m deepmd_cace.split_dataset path/to/system \
   --output path/to/dataset --valid-fraction 0.1 --seed 1
 ```
 
@@ -72,8 +77,8 @@ five fresh 40-epoch blocks at energy weight `0.1`, then 100 epochs each at
 Omit `blocks` to use a single `training.epochs` block and `loss.energy_weight`.
 
 ```bash
-PYTHONPATH=workspace python -m deepmd_cace workspace/input.json --check-only
-PYTHONPATH=workspace python -m deepmd_cace workspace/input.json
+PYTHONPATH=desc_bridging python -m deepmd_cace desc_bridging/input.json --check-only
+PYTHONPATH=desc_bridging python -m deepmd_cace desc_bridging/input.json
 ```
 
 `--check-only` loads both splits, computes DeepMD descriptor statistics, runs a
@@ -239,5 +244,5 @@ An LR configuration in the campaign's layout, with the equalization on:
 Run the numerical checks over it, on real campaign frames, with:
 
 ```bash
-PYTHONPATH=workspace python workspace/check_charge_eq_latent.py
+PYTHONPATH=desc_bridging python desc_bridging/check_charge_eq_latent.py
 ```

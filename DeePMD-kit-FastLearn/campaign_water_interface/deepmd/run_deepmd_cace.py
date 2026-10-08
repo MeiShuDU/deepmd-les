@@ -28,7 +28,7 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_ROOT = os.path.join(HERE, "runs")
-WORKSPACE = os.path.abspath(os.path.join(HERE, "../../..", "workspace"))
+DESC_BRIDGING = os.path.abspath(os.path.join(HERE, "../../..", "desc_bridging"))
 
 
 def stamp():
@@ -70,7 +70,7 @@ def make_env(args):
         env.pop("DEEPMD_CACE_DEVICE", None)
     env["DP_INTERFACE_PREC"] = "low" if args.precision == "float32" else "high"
     pythonpath = env.get("PYTHONPATH", "")
-    env["PYTHONPATH"] = WORKSPACE + (os.pathsep + pythonpath if pythonpath else "")
+    env["PYTHONPATH"] = DESC_BRIDGING + (os.pathsep + pythonpath if pythonpath else "")
     return env
 
 

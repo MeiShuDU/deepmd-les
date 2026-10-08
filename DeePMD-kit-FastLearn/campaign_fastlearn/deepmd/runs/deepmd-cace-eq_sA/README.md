@@ -1,6 +1,6 @@
 # deepmd-cace-eq - `cace-sea-lr` replicated through `deepmd_cace`, with latent-charge equalization
 
-A replicate of `cace/runs/cace-sea-lr` trained through `workspace/deepmd_cace` rather than through cace: a DeepMD `se_a` descriptor feeding CACE's `Atomwise` heads, JSON config, `python -m deepmd_cace input.json`.
+A replicate of `cace/runs/cace-sea-lr` trained through `desc_bridging/deepmd_cace` rather than through cace: a DeepMD `se_a` descriptor feeding CACE's `Atomwise` heads, JSON config, `python -m deepmd_cace input.json`.
 The one deliberate addition is `long_range.charge_eq_latent` at `w = 10`.
 
 This arm has now been trained: the full 80,000-step schedule ran on the pod on 2026-10-06 (8 of 8 blocks `ok`, `returncode 0`, 8,294 s wall at 0.104 s/batch, peak 303.8 MB of GPU memory).
@@ -18,7 +18,7 @@ So the two BEC numbers are indistinguishable at n = 1 per arm, and the compariso
 
 ## The equalizer is not where any gap comes from
 
-`workspace/check_bec_eq_arm.py` scores the *same trained weights* twice on the same 100 frames, once as trained and once with `charge_eq_latent` disabled in the config.
+`desc_bridging/check_bec_eq_arm.py` scores the *same trained weights* twice on the same 100 frames, once as trained and once with `charge_eq_latent` disabled in the config.
 `ChargeEqLatent` holds no parameters or buffers, so the state dict loads strictly into both and the pair differs only in whether `q_eq` or the head's raw `q` enters `Polarization`.
 Turning the equalizer off makes the arm worse on every measure: pooled RMSE 0.1151 -> 0.1392 e, O RMSE 0.1467 -> 0.2184, O bias `-0.1104 -> -0.1964` e, `Z*_O` `-1.013 -> -1.099` against VASP's -0.903, and the acoustic sum rule `+1.705 -> -8.334` e per frame against VASP's `2e-06`.
 The paired difference is very nearly a uniform shift in the diagonal Z*, which is what removing a charge drift does: the head's proposal carries `+7.60 e` of net charge per frame that the equalizer takes to `-0.0000`.
@@ -28,7 +28,7 @@ The equalizer does to the charges what it promises (net charge per frame `-0.000
 
 **Which checkpoint these numbers are from.** `best_model.pth` is cace's best-validation file *within one `fit()` call*, because `cace/tasks/train.py:190` resets `best_val_loss` at the top of each call. For this arm it is therefore the best epoch of the last block (timestamped 17:20:17, block 8 having started at 17:18:38), not the best over the whole schedule. The block-end `model-4.pth` scores `Z*_O = -1.012`, `Z*_H = +0.520`, O RMSE 0.119, H RMSE 0.076, i.e. within 0.002 e, so the distinction changes none of the numbers above.
 
-`workspace/bec_scatter_pred_dft.ipynb` puts this arm next to `cace-sea-lr` and the other arms, and `workspace/vasp_bec_deepmd-cace-eq_sA.npz` is the `--dump` of the same scoring.
+`desc_bridging/bec_scatter_pred_dft.ipynb` puts this arm next to `cace-sea-lr` and the other arms, and `desc_bridging/vasp_bec_deepmd-cace-eq_sA.npz` is the `--dump` of the same scoring.
 
 ## The model
 
@@ -105,7 +105,7 @@ At ~32 s/epoch the full 500-epoch schedule is roughly 4.4 h on this host's CPU; 
 
 ## Scoring the predicted BEC
 
-    cd workspace
+    cd desc_bridging
     python eval_vasp_bec.py --ckpt ../DeePMD-kit-FastLearn/campaign_fastlearn/deepmd/runs/deepmd-cace-eq_sA/best_model.pth \
         --frames 100 --dump vasp_bec_deepmd-cace-eq_sA.npz
     python check_bec_arm.py --ckpt <same> --frames 5

@@ -45,7 +45,7 @@ scaled by the weight. This file therefore captures the energy at the module
 boundary rather than from the returned dict, and prints the ratio it observes so
 the scaling is visible rather than silently divided out.
 
-Usage: PYTHONPATH=workspace python workspace/check_charge_eq_latent.py
+Usage: PYTHONPATH=desc_bridging python desc_bridging/check_charge_eq_latent.py
 """
 import copy
 import sys

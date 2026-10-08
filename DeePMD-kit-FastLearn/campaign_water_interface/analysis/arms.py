@@ -3,7 +3,7 @@
 Four arms (short-range-only and long-range, each in two families) in two
 replicates. The two families differ in *who trains*: the ``cace`` arms are cace's
 own published scripts, the ``sea`` arms are the same cace training loop with
-deepmd's ``se_a`` descriptor substituted at the input seam (``workspace/``).
+deepmd's ``se_a`` descriptor substituted at the input seam (``desc_bridging/``).
 
 The two families agree on everything that makes their errors comparable, and
 none of it is assumed here - ``score_arms.py`` checks it:

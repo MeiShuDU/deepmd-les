@@ -50,16 +50,16 @@ HERE = Path(__file__).resolve().parent
 CAMPAIGN = HERE.parent
 
 
-def _find_workspace():
+def _find_desc_bridging():
     """The tree holding ``deepmd_cace`` - the sea arms' model and data code."""
     for parent in [CAMPAIGN, *CAMPAIGN.parents]:
-        candidate = parent / "workspace"
+        candidate = parent / "desc_bridging"
         if (candidate / "deepmd_cace" / "__init__.py").is_file():
             return candidate
-    raise ModuleNotFoundError("no workspace/deepmd_cace above the campaign directory")
+    raise ModuleNotFoundError("no desc_bridging/deepmd_cace above the campaign directory")
 
 
-sys.path.insert(0, str(_find_workspace()))
+sys.path.insert(0, str(_find_desc_bridging()))
 
 import arms as arms_module  # noqa: E402  (needs sys.path above)
 

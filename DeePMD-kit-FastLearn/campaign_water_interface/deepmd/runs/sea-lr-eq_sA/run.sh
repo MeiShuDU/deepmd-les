@@ -5,6 +5,6 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 REPO="$(cd ../../../../.. && pwd)"
-export PYTHONPATH="$REPO/workspace${PYTHONPATH:+:$PYTHONPATH}"
+export PYTHONPATH="$REPO/desc_bridging${PYTHONPATH:+:$PYTHONPATH}"
 export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
 python -m deepmd_cace input.json "$@"

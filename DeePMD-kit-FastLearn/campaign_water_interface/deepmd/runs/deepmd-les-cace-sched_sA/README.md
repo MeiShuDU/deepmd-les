@@ -244,7 +244,7 @@ For this campaign the validation data are `data/water-interface/valid` (the 50-f
 held-out split), and the metrics of record are the campaign's usual ones -
 `rmse_e_peratom`, `rmse_f`, the long-range force decomposition, and parameter count.
 
-The `hybrid_ener` arms cannot be scored by the `workspace/` tools: `check_bec.load_model`
+The `hybrid_ener` arms cannot be scored by the `desc_bridging/` tools: `check_bec.load_model`
 accepts only `deepmd_cace` checkpoints, and these chained checkpoints carry no `config`
 key, which `eval_vasp_bec.lr_weight_of` requires.
 Born effective charges for this arm therefore need the local `les` path, not the campaign's

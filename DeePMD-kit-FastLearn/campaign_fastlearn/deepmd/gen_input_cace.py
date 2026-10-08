@@ -1,7 +1,7 @@
 """Generate the ``deepmd_cace`` replicate of ``cace-sea-lr`` + ``charge_eq_latent``.
 
 The arm is one of the FastLearn campaign's LR arms, but trained through
-``workspace/deepmd_cace`` (DeepMD ``se_a`` descriptor + CACE heads, JSON config,
+``desc_bridging/deepmd_cace`` (DeepMD ``se_a`` descriptor + CACE heads, JSON config,
 ``python -m deepmd_cace input.json``) rather than through the native DeepMD-kit
 ``hybrid_ener``/les path. It is a **replicate of** ``cace/runs/cace-sea-lr``:
 every hyperparameter below is copied from the cace source, and the only
