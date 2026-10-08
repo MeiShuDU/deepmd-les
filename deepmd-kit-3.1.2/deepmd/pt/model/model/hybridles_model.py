@@ -25,10 +25,9 @@ from deepmd.pt.model.model.model import BaseModel
 from deepmd.pt.model.model.make_model import make_model
 from deepmd.pt.model.model.dp_model import DPModelCommon
 from deepmd.pt.utils.env import GLOBAL_PT_FLOAT_PRECISION
-from deepmd.pt.utils.nlist import extend_input_and_build_neighbor_list
 from les import Les
 from les.module import type2number
-from deepmd.pt.model.atomic_model.hybridles import HybridLESAtomicModel
+from deepmd.pt.model.atomic_model.hybridles import HybridLESAtomicModel, _jsonable
 from deepmd.pt.model.descriptor import BaseDescriptor
 from deepmd.pt.model.task.fitting import BaseFitting
 
@@ -73,11 +72,21 @@ class HybridLESModel(DPModelCommon, HybridLESModel_):
         type_map = atomic_model_.type_map
         self.les_log_freq = les_params.get("log_freq", 100)
         self.les_verbose = bool(les_params.get("verbose", False))
+        # 与 les.py 保持一致: log_freq 非正数按「关闭日志」处理。
+        # 否则下面两处 `% self.les_log_freq` (grad hook 与分解日志) 会除零。
+        if self.les_log_freq <= 0:
+            self.les_verbose = False
+        # 长程能量整体缩放因子: 论文 cace-LES 基准以 0.01 融合短程/长程能量,
+        # deepmd 原生实现以 1.0 直接相加; 该权重使 E_LR = lr_weight * E_lr_NN,
+        # 并自动作用于长程力/长程 virial (它们都从缩放后的 E_lr 求导得到)。
+        self.lr_weight = float(les_params.get("lr_weight", 1.0))
         self._les_step_counter = 0
         # 元素名校验: type2num 对未知名称返回 404 占位 (原代码为静默行为),
         # 固定电荷/原子极化率依赖真实的原子序数, 早期显式报错以便追溯。
+        # use_fixed_charges 是 use_fixed_atomic_charges 的新名称, 二者等价触发校验。
         if (
             les_params.get("use_fixed_atomic_charges", False)
+            or les_params.get("use_fixed_charges", False)
             or les_params.get("use_atomic_alpha", False)
         ):
             am = type2number.type2num(list(type_map))
@@ -173,34 +182,28 @@ class HybridLESModel(DPModelCommon, HybridLESModel_):
         aparam: Optional[torch.Tensor] = None,
         do_atomic_virial: bool = False,
     ) -> dict[str, torch.Tensor]:
-        # 1. 调用父类 forward_common 获得短程结果（能量、力等）
-        model_ret = self.forward_common(
-            coord,
-            atype,
-            box,
-            fparam=fparam,
-            aparam=aparam,
-            do_atomic_virial=do_atomic_virial,
-        )
-
-        # 2. 重新计算描述符（用于 LES）。与短程路径保持一致: 邻居表是否按类型
-        #    分组由 self.mixed_types() 决定 (之前硬编码 mixed_types=False, 对
-        #    se_a 恰好成立, 对混合型描述符则会静默算错)。
-        # LES 通道数值精度与短程通道统一到 GLOBAL_PT_FLOAT_PRECISION (默认
-        # float64): descriptor 输出 desc 为该精度, Les 参数亦已在 atomic_model
-        # 构建时 cast 到该精度, 此处统一坐标/晶胞避免 float32 输入的 dtype 冲突。
+        # 1. 精度统一。LES 通道与短程通道共用同一个 coord/box (见第 2 步的描述符复用),
+        #    因此在这里一次性统一到 GLOBAL_PT_FLOAT_PRECISION (默认 float64):
+        #    descriptor 输出为该精度, Les 参数亦已在 atomic_model 构建时 cast 到该精度,
+        #    统一坐标/晶胞可避免 float32 输入的 dtype 冲突。对 float64 调用方 (dp 训练/
+        #    推理的常规路径) 此处的 to() 是 no-op; 对 float32 调用方, 短程通道的输入
+        #    精度随之提升 (父类内部本就要 cast 到该精度, 只是不再按调用方精度回写中间量)。
         coord = (
             coord.to(self.pt_prec)
             if coord.dtype != self.pt_prec
             else coord
         )
-        if box is not None and box.dtype != self.pt_prec:
-            box = box.to(self.pt_prec)
+        if box is not None and (
+            box.dtype != self.pt_prec or box.device != coord.device
+        ):
+            box = box.to(dtype=self.pt_prec, device=coord.device)
 
-        # requires_grad 必须在重算描述符之前开启: extend_input_and_build_neighbor_list
-        # 由 coord 构造 extended_coord, 若此刻 coord 不含梯度, 则 extended_coord/desc
-        # 会被当作常量, 长程力会静默丢失电荷响应项 ∂E_LR/∂q·∂q/∂desc·∂desc/∂r, 只剩
-        # -∂E_LR/∂r|_{q 固定}, 导致能量-力不自洽。
+        # requires_grad 必须在 forward_common 之前开启: 描述符由 coord 经
+        # extend_input_and_build_neighbor_list 构造的 extended_coord 派生, 若此刻
+        # coord 不含梯度, 则 extended_coord/desc 会被当作常量, 长程力会静默丢失电荷
+        # 响应项 ∂E_LR/∂q·∂q/∂desc·∂desc/∂r, 只剩 -∂E_LR/∂r|_{q 固定}, 导致能量-力
+        # 不自洽。(父类内部对 extended_coord 的 requires_grad_(True) 作用在中间结果上,
+        # 是 no-op, 故这里的开关是唯一生效的那次。)
         if not coord.is_leaf:
             # coord 已是某个中间结果 (非叶张量), 原地置 requires_grad 会抛错;
             # 说明该模型被嵌入到需要二阶坐标梯度的外部链路, 当前实现不支持。
@@ -222,13 +225,25 @@ class HybridLESModel(DPModelCommon, HybridLESModel_):
         if need_virial and box is not None:
             box.requires_grad_(True)
 
-        rcut = self.get_rcut()
-        sel = self.get_sel()
-        descriptor = self.atomic_model.descriptor
-        extended_coord, extended_atype, mapping, nlist = extend_input_and_build_neighbor_list(
-            coord, atype, rcut, sel, box=box, mixed_types=self.mixed_types()
+        # 2. 调用父类 forward_common 获得短程结果（能量、力等），同时取回复用的描述符。
+        #    desc_holder 是「输出通道」: 原子模型算完描述符后把该张量本身 (未 detach)
+        #    追加进来, 因此 LES 通道与短程通道共用同一次描述符计算 (省掉一次完整的
+        #    descriptor 前向), 且 ∂desc/∂coord 仍保留在计算图中, 长程力的电荷响应项
+        #    得以保留。复用的是短程拟合网看到的那一份环境描述符, 二者天然一致;
+        #    邻居表的类型区分由父类 format_nlist 按 self.mixed_types() 处理, 因此不再
+        #    需要在模型层重建邻居表 (旧版此处硬编码 mixed_types 的行为已随之一并消除)。
+        desc_holder = torch.jit.annotate(List[torch.Tensor], [])
+        model_ret = self.forward_common(
+            coord,
+            atype,
+            box,
+            fparam=fparam,
+            aparam=aparam,
+            do_atomic_virial=do_atomic_virial,
+            desc_out=desc_holder,
         )
-        desc = descriptor(extended_coord, extended_atype, nlist)[0]  # [nframes, nloc, dim]
+        assert len(desc_holder) == 1
+        desc = desc_holder[0]  # [nframes, nloc, dim]
 
         # 3. 计算 LES 长程能量和力
         nframes = coord.shape[0]
@@ -250,6 +265,9 @@ class HybridLESModel(DPModelCommon, HybridLESModel_):
         atomic_numbers = self.atomic_model.element_numbers[
             atype.reshape(-1)
         ].to(device=coord.device)
+        # type_index: type_map 中的下标 (0..ntypes-1), 供逐类型电荷层
+        # (freeze_charge / initial_guess) 索引。与 atomic_numbers
+        # (真实原子序数) 不同, 它按 type_map 顺序编号, 因此也能支持非元素符号。
         les_out = self.atomic_model.les_model(
             positions=positions,
             cell=cell_all,
@@ -257,10 +275,22 @@ class HybridLESModel(DPModelCommon, HybridLESModel_):
             batch=batch,
             compute_energy=True,
             atomic_numbers=atomic_numbers,
+            type_index=atype.reshape(-1),
         )
-        E_lr_total = les_out["E_lr"]  # [nframes]
+        E_lr_total = les_out["E_lr"]
         # Dict[str, Optional[Tensor]] 返回值精化为 Tensor (TorchScript 需要确定类型)
         assert E_lr_total is not None
+        # Ewald 逐图返回标量, torch.cat 之后是一维 [nframes], 而父类的 energy_redu 是
+        # [nframes, 1]; 两者直接相加会广播成 [nframes, nframes] 的外和。训练时
+        # batch_size auto 取到单帧, 该错误被掩盖 (1x1 矩阵恰好正确), 评估时 batch>1
+        # 便得到完全错误的能量矩阵。旧版逐帧循环用 torch.stack 得到的正是 [nframes, 1],
+        # 此处显式恢复同一秩, 数值不变 (第 i 行第 i 列即第 i 帧能量)。
+        E_lr_total = E_lr_total.reshape(nframes, 1)  # [nframes, 1]
+        # 长程能量按 lr_weight 缩放, 与 cace 基准的 CombinePotential mixing weight
+        # 对齐。缩放点在梯度计算之前, 因此长程力 (下方对 E_lr_total 求坐标梯度) 与
+        # 长程 virial 自动继承同一缩放。
+        if self.lr_weight != 1.0:
+            E_lr_total = E_lr_total * self.lr_weight
 
         # 长程力必须对完整的 coord 求梯度, 而不是对切片 coord[i]: 描述符分支经
         # extend_input_and_build_neighbor_list 挂在父张量 coord 上, 若只对 coord_i
@@ -375,12 +405,230 @@ class HybridLESModel(DPModelCommon, HybridLESModel_):
             )
         return model_predict
 
+    @torch.jit.export
+    def need_lower_box(self) -> bool:
+        """低层接口 (forward_lower) 是否需要额外传入晶胞。
+
+        Ewald 长程项显式依赖晶胞 (体积、倒格矢、k 空间网格), 而上游的低层接口签名
+        不含晶胞: 短程模型可以在 extended 区域上用「力 ⊗ 坐标」还原出 virial, 因此
+        不需要晶胞。本模型返回 True, C++ 侧 (api_cc/src/DeepPotPT.cc) 据此决定是否把
+        cell 作为第 8 个参数传给 forward_lower; 返回 False 的模型行为与上游一致。
+        """
+        return True
+
+    @torch.jit.export
+    def forward_lower(
+        self,
+        extended_coord: torch.Tensor,
+        extended_atype: torch.Tensor,
+        nlist: torch.Tensor,
+        mapping: Optional[torch.Tensor] = None,
+        fparam: Optional[torch.Tensor] = None,
+        aparam: Optional[torch.Tensor] = None,
+        do_atomic_virial: bool = False,
+        comm_dict: Optional[dict[str, torch.Tensor]] = None,
+        box: Optional[torch.Tensor] = None,
+    ) -> dict[str, torch.Tensor]:
+        """低层接口: 输入 extended 区域的坐标/类型/邻居表, 输出未归约到局部原子的量。
+
+        与 forward 的关系: forward = forward_common (内部构建 extended 区域后转调
+        forward_common_lower) + LES 长程通道; 本方法直接把 forward_common_lower 暴露
+        出来并复用同一个 LES 通道, 因此同一组 extended 输入下二者逐位一致, 长程力/
+        virial 的约定 (见 forward 的注释) 也完全沿用。
+
+        box
+            晶胞, [nframes, 9], 非周期体系传全零。这是本模型相对上游低层接口的唯一
+            扩展参数: 缺少晶胞时长程项无法计算, 故此处显式报错而不是退回只剩短程的
+            结果 (静默丢掉长程项会给出错误但看起来正常的能量/力)。
+
+        已知限制 (调用方必须保证):
+        长程项是全局量, 要求本帧的局部原子集合构成整个周期体系 (单域运行、串行
+        LAMMPS, 或整帧评估)。域分解并行下每个 rank 只持有一部分原子, 长程项需要全局
+        电荷归约与倒空间全局求和, 本接口不做 MPI 通信, 因此那种用法下长程项无意义;
+        该情形应改用 forward 的整帧通道。
+        """
+        if box is None:
+            raise RuntimeError(
+                "HybridLESModel.forward_lower needs the cell to evaluate the "
+                "long-range Ewald channel; pass `box` (zeros for a non-periodic "
+                "system)."
+            )
+
+        # 1. 精度统一, 与 forward 相同: 描述符/LES 参数同在 GLOBAL_PT_FLOAT_PRECISION。
+        extended_coord = extended_coord.view(extended_atype.shape[0], -1, 3)
+        if extended_coord.dtype != self.pt_prec:
+            extended_coord = extended_coord.to(self.pt_prec)
+        if box.dtype != self.pt_prec or box.device != extended_coord.device:
+            box = box.to(dtype=self.pt_prec, device=extended_coord.device)
+
+        # 2. requires_grad 必须在 forward_common_lower 之前开启, 理由与 forward 中同一段
+        #    说明一致: 父类对 extended_coord 的 requires_grad_(True) 作用在中间结果上是
+        #    no-op, 而描述符由 extended_coord 派生。此处缺失会同时坏掉两条通道: 短程侧
+        #    take_deriv 对 coord_ext 求梯度会直接报错, 长程侧则会静默丢掉电荷响应项。
+        if not extended_coord.is_leaf:
+            raise RuntimeError(
+                "HybridLESModel requires leaf-like extended_coord input to enable "
+                "requires_grad_ for the force autograd."
+            )
+        need_force = self.do_grad_r("energy")
+        need_virial = self.do_grad_c("energy")
+        need_coord_grad = need_force or need_virial
+        if need_coord_grad:
+            extended_coord.requires_grad_(True)
+        else:
+            extended_coord.requires_grad_(False)
+        if need_virial:
+            box.requires_grad_(True)
+
+        # 3. 短程通道, 同时取回复用的描述符 (输出通道, 见 forward)。
+        desc_holder = torch.jit.annotate(List[torch.Tensor], [])
+        model_ret = self.forward_common_lower(
+            extended_coord,
+            extended_atype,
+            nlist,
+            mapping=mapping,
+            fparam=fparam,
+            aparam=aparam,
+            do_atomic_virial=do_atomic_virial,
+            comm_dict=comm_dict,
+            extra_nlist_sort=self.need_sorted_nlist_for_lower(),
+            desc_out=desc_holder,
+        )
+        assert len(desc_holder) == 1
+        desc = desc_holder[0]  # [nframes, nloc, dim]
+
+        # 4. LES 长程通道, 与 forward 同构。局部原子是 extended 区域的前 nloc 个 (DeepMD
+        #    约定, 邻居表也以它们为中心), 因此 nloc 由邻居表的行数给出, 描述符本身就是
+        #    局部原子的 (邻居表只以局部原子为中心), 无需切片。
+        nframes = extended_coord.shape[0]
+        nloc = nlist.shape[1]
+        coord_l = extended_coord[:, :nloc]
+        atype_l = extended_atype[:, :nloc]
+        batch = (
+            torch.arange(nframes, dtype=torch.int64, device=extended_coord.device)
+            .repeat_interleave(nloc)
+        )
+        les_out = self.atomic_model.les_model(
+            positions=coord_l.reshape(-1, 3),
+            cell=box.reshape(nframes, 3, 3),
+            desc=desc.reshape(-1, desc.shape[-1]),
+            batch=batch,
+            compute_energy=True,
+            atomic_numbers=self.atomic_model.element_numbers[
+                atype_l.reshape(-1)
+            ].to(device=extended_coord.device),
+            type_index=atype_l.reshape(-1),
+        )
+        E_lr_total = les_out["E_lr"]
+        assert E_lr_total is not None
+        E_lr_total = E_lr_total.reshape(nframes, 1)
+        if self.lr_weight != 1.0:
+            E_lr_total = E_lr_total * self.lr_weight
+
+        grad_ones = torch.jit.annotate(
+            List[Optional[torch.Tensor]], [torch.ones_like(E_lr_total)]
+        )
+        force_lr_ext: Optional[torch.Tensor] = None
+        if need_coord_grad:
+            dE_lr_dcoord = torch.autograd.grad(
+                [E_lr_total],
+                [extended_coord],
+                grad_outputs=grad_ones,
+                create_graph=True,
+                retain_graph=True,
+            )[0]  # [nframes, nall, 3]
+            assert dE_lr_dcoord is not None
+            # E_LR 的 Ewald 求和只接收局部原子位置, 但 ghost 分量并不为零: 局部原子的
+            # 描述符依赖 ghost 位置, 电荷经描述符依赖之, 故 dE_LR/d(ghost) != 0。这些
+            # 分量按 DeepMD 约定随 extended_force 一并返回, 由调用方用 mapping 归约回
+            # 局部原子 (与短程通道完全一致); 下方 virial 的原子项也必须覆盖它们。
+            force_lr_ext = -dE_lr_dcoord
+
+        virial_lr: Optional[torch.Tensor] = None
+        atom_virial_lr: Optional[torch.Tensor] = None
+        if need_virial:
+            assert force_lr_ext is not None
+            grad_cell = torch.autograd.grad(
+                [E_lr_total],
+                [box],
+                grad_outputs=grad_ones,
+                create_graph=True,
+                retain_graph=True,
+                allow_unused=True,
+            )[0]
+            v_cell = torch.zeros(
+                nframes, 3, 3, dtype=extended_coord.dtype, device=extended_coord.device
+            )
+            if grad_cell is not None:
+                v_cell = -torch.einsum(
+                    "nla,nlb->nab",
+                    box.reshape(nframes, 3, 3),
+                    grad_cell.reshape(nframes, 3, 3),
+                )
+            # 与 forward 同一约定 (V = -dE/deps) 与同一指标配对, 见 forward 中的长注释。
+            # 短程通道给出的 energy_derv_c_redu 是 extended 区域上的 sum_i F_i (x) r_i,
+            # 对周期体系它已经等价于同一应变导数 (ghost 像的位置带出晶胞贡献), 二者可
+            # 直接相加。
+            #
+            # 原子项必须对整个 extended 区域求和, 不能只取前 nloc 个局部原子: ghost 的
+            # 长程力非零 (见上), 而像的位置与晶胞成正比 (ext_ghost = wrapped + shift·h),
+            # 晶胞对长程 virial 的贡献正是由它们带出来的 —— 这正是短程通道无需显式晶胞项
+            # 的同一机制。只对局部原子求和会漏掉该部分: 一帧 192 原子用有限差分对照,
+            # 总 virial 偏差达 9.9, 且张量不再对称 (应变反对称部分对应刚体转动, 能量不
+            # 变, 其导数必为零, 故对称性可作为此类漏项的哨兵)。
+            virial_lr = (
+                torch.einsum("nia,nib->nab", extended_coord, force_lr_ext) + v_cell
+            ).reshape(nframes, 9)
+            # 原子 virial 只保证「逐原子求和 = 总 virial」这一恒等式: 原子项逐 extended
+            # 原子给出, 全局的显式晶胞项平均摊到 extended 区域的每个原子上 (与短程通道
+            # 把晶胞贡献留在像上的做法同一精神)。
+            nall = extended_coord.shape[1]
+            atom_virial_lr = (
+                torch.einsum("nia,nib->niab", extended_coord, force_lr_ext)
+                + (v_cell / nall).unsqueeze(1)
+            ).reshape(nframes, nall, 1, 9)
+
+        # 5. 合并结果。输出键与上游 EnergyModel.forward_lower 一致 (C++ 侧读取 energy /
+        #    extended_force / virial / extended_virial), 因此这里用 extended 区域的力与
+        #    原子 virial, 而不是归约到局部原子后的量。
+        model_predict = {}
+        model_predict["energy"] = model_ret["energy_redu"] + E_lr_total
+        # 长程原子能未定义, 保持短程值 (与 forward 一致)。
+        model_predict["atom_energy"] = model_ret["energy"]
+        force_sr_ext: Optional[torch.Tensor] = None
+        if need_force:
+            force_sr_ext = model_ret["energy_derv_r"].squeeze(-2)  # [nframes, nall, 3]
+            assert force_lr_ext is not None
+            model_predict["extended_force"] = force_sr_ext + force_lr_ext
+        if need_virial:
+            assert virial_lr is not None
+            model_predict["virial"] = (
+                model_ret["energy_derv_c_redu"].squeeze(-2) + virial_lr
+            )
+            if do_atomic_virial:
+                assert atom_virial_lr is not None
+                model_predict["extended_virial"] = (
+                    model_ret["energy_derv_c"].squeeze(-3) + atom_virial_lr
+                )
+
+        if torch.jit.is_scripting():
+            pass
+        else:
+            self._maybe_log_les_decomposition(
+                model_ret, E_lr_total, force_sr_ext, force_lr_ext
+            )
+        return model_predict
+
     @classmethod
     def get_model(cls, model_params: dict) -> "HybridLESModel":
         """Construct a HybridLESModel from a parameter dictionary."""
         # 深拷贝以避免向 model_params 注入 ntypes/type_map/dim_descrpt 等派生键,
         # 污染调用方配置 (影响后续追溯与重复构建)。
         model_params = copy.deepcopy(model_params)
+        # les_params 里的 initial_guess / freeze_charge 允许直接传 torch.Tensor,
+        # 但下方 model_def_script = json.dumps(model_params) 需要 JSON 可序列化,
+        # 故先归一化 (列表 / ndarray 保持不变)。
+        model_params["les_params"] = _jsonable(model_params.get("les_params", {}))
         type_map = model_params["type_map"]
         ntypes = len(type_map)
 

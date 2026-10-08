@@ -1,0 +1,77 @@
+{
+    "model": {
+        "type": "standard",
+        "type_map": [
+            "O",
+            "H"
+        ],
+        "descriptor": {
+            "type": "se_a",
+            "sel": [
+                39,
+                73
+            ],
+            "rcut_smth": 0.5,
+            "rcut": 5.5,
+            "neuron": [
+                25,
+                50,
+                100
+            ],
+            "axis_neuron": 16,
+            "resnet_dt": false,
+            "seed": 1
+        },
+        "fitting_net": {
+            "neuron": [
+                32,
+                16
+            ],
+            "activation_function": "silu",
+            "resnet_dt": false,
+            "seed": 1
+        }
+    },
+    "learning_rate": {
+        "type": "exp",
+        "decay_steps": 3200,
+        "decay_rate": 0.5,
+        "start_lr": 0.01,
+        "stop_lr": 0.0025
+    },
+    "loss": {
+        "type": "ener",
+        "start_pref_e": 19.2,
+        "limit_pref_e": 19.2,
+        "start_pref_f": 1000,
+        "limit_pref_f": 1000,
+        "start_pref_v": 0.0,
+        "limit_pref_v": 0.0
+    },
+    "training": {
+        "training_data": {
+            "systems": [
+                "../../../../../data/data_0",
+                "../../../../../data/data_1",
+                "../../../../../data/data_2"
+            ],
+            "batch_size": 2
+        },
+        "validation_data": {
+            "systems": [
+                "../../../../../data/data_3"
+            ],
+            "batch_size": 4,
+            "numb_btch": 20
+        },
+        "numb_steps": 6400,
+        "warmup_steps": 5,
+        "gradient_max_norm": 10.0,
+        "seed": 10,
+        "disp_file": "lcurve.out",
+        "disp_freq": 1000,
+        "save_freq": 3200,
+        "save_ckpt": "model.ckpt",
+        "max_ckpt_keep": 30
+    }
+}

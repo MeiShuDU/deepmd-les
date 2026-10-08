@@ -207,6 +207,7 @@ class BaseAtomicModel(torch.nn.Module, BaseAtomicModel_):
         fparam: Optional[torch.Tensor] = None,
         aparam: Optional[torch.Tensor] = None,
         comm_dict: Optional[dict[str, torch.Tensor]] = None,
+        desc_out: Optional[list[torch.Tensor]] = None,
     ) -> dict[str, torch.Tensor]:
         """Common interface for atomic inference.
 
@@ -230,6 +231,10 @@ class BaseAtomicModel(torch.nn.Module, BaseAtomicModel_):
             atomic parameter, shape: nf x nloc x dim_aparam
         comm_dict
             The data needed for communication for parallel inference.
+        desc_out
+            可选的输出通道: 非 None 时, 本次前向算出的 descriptor (未 detach,
+            保留计算图) 会被追加到该列表中, 供需要复用描述符的复型模型使用
+            (如 hybrid_ener 的长程通道), 以避免重复计算描述符。默认 None。
 
         Returns
         -------
@@ -258,6 +263,7 @@ class BaseAtomicModel(torch.nn.Module, BaseAtomicModel_):
             fparam=fparam,
             aparam=aparam,
             comm_dict=comm_dict,
+            desc_out=desc_out,
         )
         ret_dict = self.apply_out_stat(ret_dict, atype)
 
@@ -288,6 +294,7 @@ class BaseAtomicModel(torch.nn.Module, BaseAtomicModel_):
         fparam: Optional[torch.Tensor] = None,
         aparam: Optional[torch.Tensor] = None,
         comm_dict: Optional[dict[str, torch.Tensor]] = None,
+        desc_out: Optional[list[torch.Tensor]] = None,
     ) -> dict[str, torch.Tensor]:
         return self.forward_common_atomic(
             extended_coord,
@@ -297,6 +304,7 @@ class BaseAtomicModel(torch.nn.Module, BaseAtomicModel_):
             fparam=fparam,
             aparam=aparam,
             comm_dict=comm_dict,
+            desc_out=desc_out,
         )
 
     def change_type_map(

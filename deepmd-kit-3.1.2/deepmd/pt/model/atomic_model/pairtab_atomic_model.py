@@ -263,7 +263,14 @@ class PairTabAtomicModel(BaseAtomicModel):
         aparam: Optional[torch.Tensor] = None,
         do_atomic_virial: bool = False,
         comm_dict: Optional[dict[str, torch.Tensor]] = None,
+        desc_out: Optional[list[torch.Tensor]] = None,
     ) -> dict[str, torch.Tensor]:
+        """Return atomic prediction.
+
+        desc_out
+            仅为与 BaseAtomicModel.forward_common_atomic 的接口保持一致而接受;
+            本模型是查表模型, 没有神经网络描述符, 因此不会向该列表追加任何内容。
+        """
         nframes, nloc, nnei = nlist.shape
         extended_coord = extended_coord.view(nframes, -1, 3)
         if self.do_grad_r() or self.do_grad_c():

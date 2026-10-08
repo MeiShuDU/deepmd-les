@@ -1,0 +1,217 @@
+{
+  "arm": "deepmd",
+  "replicate": "A",
+  "smoke": true,
+  "cace_recipe": {
+    "source": "cace-lr-fit-datarepo/.../fit-water-interface/fit-interface-mp0-sr/fit-cace-nnp.py",
+    "steps_per_epoch": 450,
+    "phases": [
+      [
+        0.01,
+        5,
+        40
+      ],
+      [
+        1.0,
+        1,
+        100
+      ],
+      [
+        10.0,
+        1,
+        100
+      ]
+    ],
+    "steplr": {
+      "step_size_epochs": 20,
+      "gamma": 0.5
+    },
+    "optimizer": {
+      "type": "Adam",
+      "lr": 0.01,
+      "betas": [
+        0.99,
+        0.999
+      ],
+      "note": "deepmd Adam betas are (0.9, 0.999); not settable"
+    },
+    "warmup_steps": 2250,
+    "warmup_note": "cace's warmup_steps 5 counts epochs (global_step advances once per epoch), so it is 2250 deepmd steps",
+    "max_grad_norm": 10.0,
+    "force_weight": 1000.0,
+    "energy_weight_to_pref_e": "natoms=1566 x w_E, undoing deepmd's per-atom energy loss",
+    "split": {
+      "valid_fraction": 0.1,
+      "seed": 1,
+      "source": "prep_water_interface.py -> split_manifest.txt"
+    },
+    "seeds": {
+      "desc_seed": 1,
+      "fit_seed": 1,
+      "train_seed": 10
+    }
+  },
+  "model": {
+    "descriptor": {
+      "type": "se_a",
+      "sel": [
+        43,
+        84
+      ],
+      "rcut_smth": 0.5,
+      "rcut": 6.0,
+      "neuron": [
+        25,
+        50,
+        100
+      ],
+      "axis_neuron": 16,
+      "resnet_dt": false
+    },
+    "fitting_net": {
+      "neuron": [
+        240,
+        240,
+        240
+      ]
+    },
+    "type": "standard",
+    "les_params": null
+  },
+  "segments": [
+    {
+      "n": 1,
+      "phase": 0,
+      "rep": 0,
+      "fresh_task": true,
+      "w_e": 0.01,
+      "epochs": 2,
+      "num_steps": 100,
+      "steps_per_epoch": 50,
+      "global_offset": 0,
+      "task_epoch": 0,
+      "start_lr": 0.01,
+      "stop_lr": 0.0025,
+      "decay_steps": 50,
+      "warmup": 5,
+      "natoms": 1566,
+      "pref_e": 15.66,
+      "pref_f": 1000.0
+    },
+    {
+      "n": 2,
+      "phase": 0,
+      "rep": 1,
+      "fresh_task": true,
+      "w_e": 0.01,
+      "epochs": 2,
+      "num_steps": 100,
+      "steps_per_epoch": 50,
+      "global_offset": 100,
+      "task_epoch": 0,
+      "start_lr": 0.01,
+      "stop_lr": 0.0025,
+      "decay_steps": 50,
+      "warmup": 5,
+      "natoms": 1566,
+      "pref_e": 15.66,
+      "pref_f": 1000.0
+    },
+    {
+      "n": 3,
+      "phase": 0,
+      "rep": 2,
+      "fresh_task": true,
+      "w_e": 0.01,
+      "epochs": 2,
+      "num_steps": 100,
+      "steps_per_epoch": 50,
+      "global_offset": 200,
+      "task_epoch": 0,
+      "start_lr": 0.01,
+      "stop_lr": 0.0025,
+      "decay_steps": 50,
+      "warmup": 5,
+      "natoms": 1566,
+      "pref_e": 15.66,
+      "pref_f": 1000.0
+    },
+    {
+      "n": 4,
+      "phase": 0,
+      "rep": 3,
+      "fresh_task": true,
+      "w_e": 0.01,
+      "epochs": 2,
+      "num_steps": 100,
+      "steps_per_epoch": 50,
+      "global_offset": 300,
+      "task_epoch": 0,
+      "start_lr": 0.01,
+      "stop_lr": 0.0025,
+      "decay_steps": 50,
+      "warmup": 5,
+      "natoms": 1566,
+      "pref_e": 15.66,
+      "pref_f": 1000.0
+    },
+    {
+      "n": 5,
+      "phase": 0,
+      "rep": 4,
+      "fresh_task": true,
+      "w_e": 0.01,
+      "epochs": 2,
+      "num_steps": 100,
+      "steps_per_epoch": 50,
+      "global_offset": 400,
+      "task_epoch": 0,
+      "start_lr": 0.01,
+      "stop_lr": 0.0025,
+      "decay_steps": 50,
+      "warmup": 5,
+      "natoms": 1566,
+      "pref_e": 15.66,
+      "pref_f": 1000.0
+    },
+    {
+      "n": 6,
+      "phase": 1,
+      "rep": 0,
+      "fresh_task": false,
+      "w_e": 1.0,
+      "epochs": 2,
+      "num_steps": 100,
+      "steps_per_epoch": 50,
+      "global_offset": 500,
+      "task_epoch": 2,
+      "start_lr": 0.0025,
+      "stop_lr": 0.000625,
+      "decay_steps": 50,
+      "warmup": 0,
+      "natoms": 1566,
+      "pref_e": 1566.0,
+      "pref_f": 1000.0
+    },
+    {
+      "n": 7,
+      "phase": 2,
+      "rep": 0,
+      "fresh_task": false,
+      "w_e": 10.0,
+      "epochs": 2,
+      "num_steps": 100,
+      "steps_per_epoch": 50,
+      "global_offset": 600,
+      "task_epoch": 4,
+      "start_lr": 0.000625,
+      "stop_lr": 0.00015625,
+      "decay_steps": 50,
+      "warmup": 0,
+      "natoms": 1566,
+      "pref_e": 15660.0,
+      "pref_f": 1000.0
+    }
+  ],
+  "total_steps": 700
+}

@@ -1,0 +1,27 @@
+{
+  "arm": "deepmd-les",
+  "replicate": "A",
+  "host": "LAPTOP-FTGPAQLQ",
+  "device": "gpu",
+  "precision": "float32",
+  "smoke": true,
+  "started": "2026-09-25T19:23:12+08:00",
+  "ended": "2026-09-25T19:23:58+08:00",
+  "blocks": [
+    {
+      "n": 1,
+      "num_steps": 100,
+      "seconds": 46.68,
+      "s_per_batch": 0.466766,
+      "reported_s_per_batch": null,
+      "started": "2026-09-25T19:23:12+08:00",
+      "ended": "2026-09-25T19:23:58+08:00",
+      "returncode": 1,
+      "ok": false
+    }
+  ],
+  "total_seconds": 46.68,
+  "total_steps": 100,
+  "s_per_batch": 0.4668,
+  "aborted_at": 1
+}

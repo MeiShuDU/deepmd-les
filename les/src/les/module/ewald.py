@@ -88,6 +88,79 @@ class Ewald(nn.Module):
 
         return torch.cat(results), torch.cat(q_induced_results), torch.cat(u_induced_results)
 
+    def compute_coulomb_matrix(
+        self,
+        r: torch.Tensor,
+        cell: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        """Return A such that the charge-only Ewald energy is 0.5 * q.T @ A @ q."""
+        n = r.shape[0]
+        if cell is None or torch.linalg.det(cell) < 1e-6:
+            norm_const = self.norm_factor / self.twopi
+            matrix = make_kernels(
+                r,
+                self.sigma,
+                norm_const,
+                compute_u=False,
+                compute_Q=False,
+            )[0]
+            if not self.remove_self_interaction:
+                diagonal = 2.0 * self.norm_factor / (self.sigma * self.twopi**1.5)
+                matrix = matrix + torch.eye(n, dtype=r.dtype, device=r.device) * diagonal
+            return matrix
+
+        cell = cell.to(device=r.device, dtype=r.dtype)
+        volume = torch.linalg.det(cell)
+        reciprocal = 2.0 * torch.pi * torch.linalg.inv(cell).T
+        norms = torch.linalg.norm(cell, dim=1)
+        nk: List[int] = []
+        for axis in range(3):
+            nk.append(max(1, int(norms[axis].item() / self.dl)))
+
+        n1 = torch.arange(-nk[0], nk[0] + 1, device=r.device)
+        n2 = torch.arange(-nk[1], nk[1] + 1, device=r.device)
+        n3 = torch.arange(-nk[2], nk[2] + 1, device=r.device)
+        nvec = torch.stack(torch.meshgrid(n1, n2, n3, indexing="ij"), dim=-1)
+        nvec = nvec.reshape(-1, 3).to(reciprocal.dtype)
+        kvec = nvec @ reciprocal
+        k_sq = torch.sum(kvec**2, dim=1)
+        mask = (k_sq > 0) & (k_sq <= self.k_sq_max)
+        nvec, kvec, k_sq = nvec[mask], kvec[mask], k_sq[mask]
+
+        non_zero = (nvec != 0).to(torch.int)
+        first_non_zero = torch.argmax(non_zero, dim=1)
+        sign = torch.gather(nvec, 1, first_non_zero.unsqueeze(1)).squeeze(1)
+        hemisphere = (sign > 0) | (nvec == 0).all(dim=1)
+        nvec, kvec, k_sq = nvec[hemisphere], kvec[hemisphere], k_sq[hemisphere]
+        factors = torch.where((nvec == 0).all(dim=1), 1.0, 2.0)
+
+        prefactor = (
+            factors
+            * 2.0
+            * torch.exp(-self.sigma_sq_half * k_sq)
+            / k_sq
+            / volume
+            * self.norm_factor
+        )
+        # k 是求和指标, 必须收缩在矩阵乘法内部完成。若先显式构造相位差
+        # [n, n, M] 再取 cos, 峰值内存是 O(n^2 M): 真实界面体系 (1566 原子,
+        # M=11146) 单张就是 ~220 GB, 任何单卡都放不下, 而矩阵本身只有 n^2。
+        # 用积化和差把 k 收进两次 GEMM:
+        #   cos(k.(r_i - r_j)) = cos(k.r_i)cos(k.r_j) + sin(k.r_i)sin(k.r_j)
+        # 于是 A = (cos*p) @ cos^T + (sin*p) @ sin^T, 峰值内存降到 O(nM)。
+        # 数学上与直接双重求和完全等价, 且少了 11146 项相减再取 cos 的舍入累积。
+        phase = r @ kvec.T
+        cos_phase = torch.cos(phase)
+        sin_phase = torch.sin(phase)
+        matrix = (cos_phase * prefactor) @ cos_phase.T + (
+            sin_phase * prefactor
+        ) @ sin_phase.T
+
+        if self.remove_self_interaction:
+            diagonal = 2.0 * self.norm_factor / (self.sigma * self.twopi**1.5)
+            matrix = matrix - torch.eye(n, dtype=r.dtype, device=r.device) * diagonal
+        return matrix
+
     def compute_potential_realspace(self, r_raw, q,
                                     u: Optional[torch.Tensor]=None,
                                     quad: Optional[torch.Tensor]=None,

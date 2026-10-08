@@ -1,0 +1,199 @@
+{
+  "arm": "deepmd-les-cace-sched",
+  "replicate": "B",
+  "smoke": true,
+  "cace_recipe": {
+    "steps_per_epoch": 160,
+    "phases": [
+      [
+        0.1,
+        5,
+        40
+      ],
+      [
+        1.0,
+        1,
+        100
+      ],
+      [
+        10.0,
+        1,
+        100
+      ],
+      [
+        1000.0,
+        1,
+        100
+      ]
+    ],
+    "steplr": {
+      "step_size_epochs": 20,
+      "gamma": 0.5
+    },
+    "optimizer": {
+      "type": "Adam",
+      "lr": 0.01,
+      "betas": [
+        0.99,
+        0.999
+      ],
+      "note": "deepmd Adam betas are (0.9, 0.999); not settable"
+    },
+    "warmup_steps": 5,
+    "max_grad_norm": 10.0,
+    "force_weight": 1000.0,
+    "energy_weight_to_pref_e": "NATOMS=96 x w_E, undoing deepmd's per-atom energy loss",
+    "seeds": {
+      "desc_seed": 2,
+      "fit_seed": 2,
+      "train_seed": 20
+    }
+  },
+  "segments": [
+    {
+      "n": 1,
+      "phase": 0,
+      "rep": 0,
+      "fresh_task": true,
+      "w_e": 0.1,
+      "epochs": 3,
+      "num_steps": 480,
+      "steps_per_epoch": 160,
+      "global_offset": 0,
+      "task_epoch": 0,
+      "start_lr": 0.01,
+      "stop_lr": 0.00125,
+      "decay_steps": 160,
+      "warmup": 5,
+      "pref_e": 9.600000000000001,
+      "pref_f": 1000.0
+    },
+    {
+      "n": 2,
+      "phase": 0,
+      "rep": 1,
+      "fresh_task": true,
+      "w_e": 0.1,
+      "epochs": 3,
+      "num_steps": 480,
+      "steps_per_epoch": 160,
+      "global_offset": 480,
+      "task_epoch": 0,
+      "start_lr": 0.01,
+      "stop_lr": 0.00125,
+      "decay_steps": 160,
+      "warmup": 5,
+      "pref_e": 9.600000000000001,
+      "pref_f": 1000.0
+    },
+    {
+      "n": 3,
+      "phase": 0,
+      "rep": 2,
+      "fresh_task": true,
+      "w_e": 0.1,
+      "epochs": 3,
+      "num_steps": 480,
+      "steps_per_epoch": 160,
+      "global_offset": 960,
+      "task_epoch": 0,
+      "start_lr": 0.01,
+      "stop_lr": 0.00125,
+      "decay_steps": 160,
+      "warmup": 5,
+      "pref_e": 9.600000000000001,
+      "pref_f": 1000.0
+    },
+    {
+      "n": 4,
+      "phase": 0,
+      "rep": 3,
+      "fresh_task": true,
+      "w_e": 0.1,
+      "epochs": 3,
+      "num_steps": 480,
+      "steps_per_epoch": 160,
+      "global_offset": 1440,
+      "task_epoch": 0,
+      "start_lr": 0.01,
+      "stop_lr": 0.00125,
+      "decay_steps": 160,
+      "warmup": 5,
+      "pref_e": 9.600000000000001,
+      "pref_f": 1000.0
+    },
+    {
+      "n": 5,
+      "phase": 0,
+      "rep": 4,
+      "fresh_task": true,
+      "w_e": 0.1,
+      "epochs": 3,
+      "num_steps": 480,
+      "steps_per_epoch": 160,
+      "global_offset": 1920,
+      "task_epoch": 0,
+      "start_lr": 0.01,
+      "stop_lr": 0.00125,
+      "decay_steps": 160,
+      "warmup": 5,
+      "pref_e": 9.600000000000001,
+      "pref_f": 1000.0
+    },
+    {
+      "n": 6,
+      "phase": 1,
+      "rep": 0,
+      "fresh_task": false,
+      "w_e": 1.0,
+      "epochs": 3,
+      "num_steps": 480,
+      "steps_per_epoch": 160,
+      "global_offset": 2400,
+      "task_epoch": 3,
+      "start_lr": 0.00125,
+      "stop_lr": 0.00015625,
+      "decay_steps": 160,
+      "warmup": 0,
+      "pref_e": 96.0,
+      "pref_f": 1000.0
+    },
+    {
+      "n": 7,
+      "phase": 2,
+      "rep": 0,
+      "fresh_task": false,
+      "w_e": 10.0,
+      "epochs": 3,
+      "num_steps": 480,
+      "steps_per_epoch": 160,
+      "global_offset": 2880,
+      "task_epoch": 6,
+      "start_lr": 0.00015625,
+      "stop_lr": 1.953125e-05,
+      "decay_steps": 160,
+      "warmup": 0,
+      "pref_e": 960.0,
+      "pref_f": 1000.0
+    },
+    {
+      "n": 8,
+      "phase": 3,
+      "rep": 0,
+      "fresh_task": false,
+      "w_e": 1000.0,
+      "epochs": 3,
+      "num_steps": 480,
+      "steps_per_epoch": 160,
+      "global_offset": 3360,
+      "task_epoch": 9,
+      "start_lr": 1.953125e-05,
+      "stop_lr": 2.44140625e-06,
+      "decay_steps": 160,
+      "warmup": 0,
+      "pref_e": 96000.0,
+      "pref_f": 1000.0
+    }
+  ],
+  "total_steps": 3840
+}

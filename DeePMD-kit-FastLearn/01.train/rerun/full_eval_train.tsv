@@ -1,0 +1,7 @@
+run	model	rep	rmse_e_peratom	rmse_f	natoms	nframes
+run_ordinary_sA	ordinary	A	1.12314516e-03	8.33489948e-02	192	80
+run_hybrid_q_sA	hybrid_q	A	9.94690815e-04	8.11643763e-02	192	80
+run_hybrid_fixed_sA	hybrid_fixed	A	7.75690653e-04	7.58781903e-02	192	80
+run_ordinary_sB	ordinary	B	1.00019067e-03	7.84104850e-02	192	80
+run_hybrid_q_sB	hybrid_q	B	9.53377413e-04	7.77378344e-02	192	80
+run_hybrid_fixed_sB	hybrid_fixed	B	1.48272914e-03	7.30969746e-02	192	80

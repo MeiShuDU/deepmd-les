@@ -1,0 +1,255 @@
+{
+  "arm": "deepmd-les-cace-sched",
+  "replicate": "B",
+  "smoke": false,
+  "cace_recipe": {
+    "source": "cace-lr-fit-datarepo/.../fit-water-interface/fit-interface-mp0/fit-cace-nnp.py",
+    "steps_per_epoch": 450,
+    "phases": [
+      [
+        0.01,
+        5,
+        40
+      ],
+      [
+        1.0,
+        1,
+        100
+      ],
+      [
+        10.0,
+        1,
+        100
+      ],
+      [
+        1000.0,
+        1,
+        100
+      ]
+    ],
+    "steplr": {
+      "step_size_epochs": 20,
+      "gamma": 0.5
+    },
+    "optimizer": {
+      "type": "Adam",
+      "lr": 0.01,
+      "betas": [
+        0.99,
+        0.999
+      ],
+      "note": "deepmd Adam betas are (0.9, 0.999); not settable"
+    },
+    "warmup_steps": 2250,
+    "warmup_note": "cace's warmup_steps 5 counts epochs (global_step advances once per epoch), so it is 2250 deepmd steps",
+    "max_grad_norm": 10.0,
+    "force_weight": 1000.0,
+    "energy_weight_to_pref_e": "natoms=1566 x w_E, undoing deepmd's per-atom energy loss",
+    "split": {
+      "valid_fraction": 0.1,
+      "seed": 1,
+      "source": "prep_water_interface.py -> split_manifest.txt"
+    },
+    "seeds": {
+      "desc_seed": 2,
+      "fit_seed": 2,
+      "train_seed": 20
+    }
+  },
+  "model": {
+    "descriptor": {
+      "type": "se_a",
+      "sel": [
+        43,
+        84
+      ],
+      "rcut_smth": 0.5,
+      "rcut": 5.5,
+      "neuron": [
+        25,
+        50,
+        100
+      ],
+      "axis_neuron": 16,
+      "resnet_dt": false
+    },
+    "fitting_net": {
+      "neuron": [
+        32,
+        16
+      ],
+      "activation_function": "silu",
+      "resnet_dt": false
+    },
+    "type": "hybrid_ener",
+    "les_params": {
+      "local_charge": true,
+      "n_hidden": [
+        24,
+        12
+      ],
+      "n_layers": 3,
+      "add_linear_nn": true,
+      "sigma": 1.0,
+      "dl": 2.0,
+      "remove_self_interaction": false,
+      "output_scaling_factor": 1.0,
+      "lr_weight": 0.02
+    }
+  },
+  "segments": [
+    {
+      "n": 1,
+      "phase": 0,
+      "rep": 0,
+      "fresh_task": true,
+      "w_e": 0.01,
+      "epochs": 40,
+      "num_steps": 18000,
+      "steps_per_epoch": 450,
+      "global_offset": 0,
+      "task_epoch": 0,
+      "start_lr": 0.01,
+      "stop_lr": 0.0025,
+      "decay_steps": 9000,
+      "warmup": 2250,
+      "natoms": 1566,
+      "pref_e": 15.66,
+      "pref_f": 1000.0
+    },
+    {
+      "n": 2,
+      "phase": 0,
+      "rep": 1,
+      "fresh_task": true,
+      "w_e": 0.01,
+      "epochs": 40,
+      "num_steps": 18000,
+      "steps_per_epoch": 450,
+      "global_offset": 18000,
+      "task_epoch": 0,
+      "start_lr": 0.01,
+      "stop_lr": 0.0025,
+      "decay_steps": 9000,
+      "warmup": 2250,
+      "natoms": 1566,
+      "pref_e": 15.66,
+      "pref_f": 1000.0
+    },
+    {
+      "n": 3,
+      "phase": 0,
+      "rep": 2,
+      "fresh_task": true,
+      "w_e": 0.01,
+      "epochs": 40,
+      "num_steps": 18000,
+      "steps_per_epoch": 450,
+      "global_offset": 36000,
+      "task_epoch": 0,
+      "start_lr": 0.01,
+      "stop_lr": 0.0025,
+      "decay_steps": 9000,
+      "warmup": 2250,
+      "natoms": 1566,
+      "pref_e": 15.66,
+      "pref_f": 1000.0
+    },
+    {
+      "n": 4,
+      "phase": 0,
+      "rep": 3,
+      "fresh_task": true,
+      "w_e": 0.01,
+      "epochs": 40,
+      "num_steps": 18000,
+      "steps_per_epoch": 450,
+      "global_offset": 54000,
+      "task_epoch": 0,
+      "start_lr": 0.01,
+      "stop_lr": 0.0025,
+      "decay_steps": 9000,
+      "warmup": 2250,
+      "natoms": 1566,
+      "pref_e": 15.66,
+      "pref_f": 1000.0
+    },
+    {
+      "n": 5,
+      "phase": 0,
+      "rep": 4,
+      "fresh_task": true,
+      "w_e": 0.01,
+      "epochs": 40,
+      "num_steps": 18000,
+      "steps_per_epoch": 450,
+      "global_offset": 72000,
+      "task_epoch": 0,
+      "start_lr": 0.01,
+      "stop_lr": 0.0025,
+      "decay_steps": 9000,
+      "warmup": 2250,
+      "natoms": 1566,
+      "pref_e": 15.66,
+      "pref_f": 1000.0
+    },
+    {
+      "n": 6,
+      "phase": 1,
+      "rep": 0,
+      "fresh_task": false,
+      "w_e": 1.0,
+      "epochs": 100,
+      "num_steps": 45000,
+      "steps_per_epoch": 450,
+      "global_offset": 90000,
+      "task_epoch": 40,
+      "start_lr": 0.0025,
+      "stop_lr": 7.8125e-05,
+      "decay_steps": 9000,
+      "warmup": 0,
+      "natoms": 1566,
+      "pref_e": 1566.0,
+      "pref_f": 1000.0
+    },
+    {
+      "n": 7,
+      "phase": 2,
+      "rep": 0,
+      "fresh_task": false,
+      "w_e": 10.0,
+      "epochs": 100,
+      "num_steps": 45000,
+      "steps_per_epoch": 450,
+      "global_offset": 135000,
+      "task_epoch": 140,
+      "start_lr": 7.8125e-05,
+      "stop_lr": 2.44140625e-06,
+      "decay_steps": 9000,
+      "warmup": 0,
+      "natoms": 1566,
+      "pref_e": 15660.0,
+      "pref_f": 1000.0
+    },
+    {
+      "n": 8,
+      "phase": 3,
+      "rep": 0,
+      "fresh_task": false,
+      "w_e": 1000.0,
+      "epochs": 100,
+      "num_steps": 45000,
+      "steps_per_epoch": 450,
+      "global_offset": 180000,
+      "task_epoch": 240,
+      "start_lr": 2.44140625e-06,
+      "stop_lr": 7.62939453125e-08,
+      "decay_steps": 9000,
+      "warmup": 0,
+      "natoms": 1566,
+      "pref_e": 1566000.0,
+      "pref_f": 1000.0
+    }
+  ],
+  "total_steps": 225000
+}

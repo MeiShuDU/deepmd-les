@@ -1,0 +1,41 @@
+{
+  "note": "TRANSCRIBED, not freshly computed. The four deepmd arms were scored on the HPC pod during the 2026-09-19 harvest; the checkpoint .pt files were not copied to this working tree and the pod is stopped, so these numbers cannot be regenerated locally. They are the stdout of `python compare/metrics.py --late 3` and match the headline table in CACE_COMPARISON.md. The cace rows come from the same harvest and ARE reproducible locally: run compare/record_cace_valid.py.",
+  "harvested_date": "2026-09-19",
+  "harvested_on": "HPC pod cpod-1vg1a4dwa0n (RTX 4090), runs at decay_steps 100000 / 100000 steps",
+  "produced_by": "compare/metrics.py --late 3",
+  "checkpoints_averaged": [90000, 95000, 100000],
+  "run_dir": "cace_compare_e2e/deepmd/runs100k/<arm>",
+  "valid_split": "cace_compare_e2e/water/valid/set.000",
+  "n_frames": 159,
+  "n_atoms": 192,
+  "e_target_peratom_rms_ev": 7.4307e-02,
+  "f_target_rms_ev_per_a": 2.1105e+00,
+  "metrics": {
+    "sr": {
+      "e_rmse": 6.6349e-03, "e_mae": 4.8456e-03, "e_r2": 0.99203,
+      "f_rmse": 1.4555e-01, "f_mae": 9.1273e-02, "f_r2": 0.99524
+    },
+    "hyb_lrw1": {
+      "e_rmse": 6.5884e-03, "e_mae": 4.6423e-03, "e_r2": 0.99214,
+      "f_rmse": 1.4804e-01, "f_mae": 9.2586e-02, "f_r2": 0.99508
+    },
+    "hyb_lrw001": {
+      "e_rmse": 6.0797e-03, "e_mae": 4.7000e-03, "e_r2": 0.99331,
+      "f_rmse": 1.4652e-01, "f_mae": 9.2171e-02, "f_r2": 0.99518
+    },
+    "freeze_spce": {
+      "e_rmse": 6.6280e-03, "e_mae": 4.9547e-03, "e_r2": 0.99204,
+      "f_rmse": 1.4114e-01, "f_mae": 8.9351e-02, "f_r2": 0.99553
+    }
+  },
+  "per_checkpoint_ranges": {
+    "note": "min..max across the three averaged checkpoints. Recorded because the means alone cannot tell a real between-arm difference from checkpoint-to-checkpoint noise; the report's item 1 is decided by whether these ranges overlap.",
+    "sr":          {"e_rmse": [6.5957e-03, 6.6615e-03]},
+    "hyb_lrw1":    {"e_rmse": [6.5795e-03, 6.6034e-03]},
+    "hyb_lrw001":  {"e_rmse": [6.0506e-03, 6.1202e-03]},
+    "freeze_spce": {"e_rmse": [6.6108e-03, 6.6408e-03],
+                    "f_rmse": [1.4113e-01, 1.4114e-01],
+                    "f_rmse_spread_pct": 0.007}
+  },
+  "force_spread_pct_all_arms_under": 0.02
+}

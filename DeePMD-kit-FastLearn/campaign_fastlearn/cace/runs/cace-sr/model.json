@@ -1,0 +1,43 @@
+{
+  "recorded_utc": "2026-09-21T03:18:05+00:00",
+  "arm": "sr",
+  "tag": "cace-sr_model",
+  "model": "cace/runs/cace-sr/model.pth",
+  "model_sha256": "3e55e351581e05520a2c62bfadc97f441ab2c6750e3906d419d7bb349b9bf7d9",
+  "cace_root": "/root/app/cace-ts",
+  "valid_xyz": "/root/app/deepmd-les/deepmd-les/DeePMD-kit-FastLearn/campaign_fastlearn/xyz/valid.xyz",
+  "valid_xyz_sha256": "8345c8dd5cccde0acfb48f7ad494de5f1f44aef4a7a9a0d8776fb6dc491b6d47",
+  "cutoff": 5.5,
+  "batch_size": 4,
+  "atomic_energies": {
+    "1": -187.6043857100553,
+    "8": -93.80219285502734
+  },
+  "lr_mix_weight": null,
+  "n_frames": 80,
+  "n_atoms": 192,
+  "split_check_vs_deepmd": {
+    "nframes_cace": 80,
+    "nframes_deepmd": 80,
+    "natoms": 192,
+    "energy_from_frame_objects": "unavailable (RuntimeError: Atoms object has no calculator.)",
+    "max_dpos_a": 5.000000413701855e-09,
+    "max_dcell_a": 0.0,
+    "geometry_match": true
+  },
+  "mechanism": null,
+  "metrics": {
+    "cace-sr_model": {
+      "e_rmse": 0.0007621110416948795,
+      "e_mae": 0.000710576307028532,
+      "e_r2": 0.9450042843818665,
+      "f_rmse": 0.02773246355354786,
+      "f_mae": 0.021356388926506042,
+      "f_r2": 0.998849093914032,
+      "rmse": 0.0007621110416948795,
+      "bias": 0.0007105762488208711,
+      "spread": 0.00027548972866497934,
+      "bias2_over_rmse2": 0.8693303986984255
+    }
+  }
+}

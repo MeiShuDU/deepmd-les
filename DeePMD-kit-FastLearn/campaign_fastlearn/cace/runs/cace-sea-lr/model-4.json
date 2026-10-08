@@ -1,0 +1,100 @@
+{
+  "recorded_utc": "2026-09-23T16:52:49+00:00",
+  "arm": "sea-lr",
+  "tag": "cace-sea-lr_model-4",
+  "model": "cace/runs/cace-sea-lr/model-4.pth",
+  "model_sha256": "c9d8cb1f22de18747b675da08eab94f5b661a42458d468f8d053fb95de8fbd32",
+  "cace_root": "/root/app/cace-ts",
+  "checkpoint_format": "sea-state-dict-1",
+  "sea_rebuild": {
+    "format": "sea-state-dict-1",
+    "arm": "lr",
+    "se_a_block": {
+      "rcut": 5.5,
+      "rcut_smth": 0.5,
+      "sel": [
+        39,
+        73
+      ],
+      "neuron": [
+        25,
+        50,
+        100
+      ],
+      "axis_neuron": 16,
+      "resnet_dt": false,
+      "seed": 1,
+      "type_one_side": false
+    },
+    "type_map": [
+      "O",
+      "H"
+    ],
+    "dim_out": 1600,
+    "nsel": 112,
+    "n_embed_nets": 4,
+    "seed": 10,
+    "cace_provenance": {
+      "imported_from": "/root/app/cace-ts/cace/__init__.py",
+      "version": null,
+      "requested_root": "/root/app/cace-ts"
+    }
+  },
+  "valid_xyz": "/root/app/deepmd-les/deepmd-les/DeePMD-kit-FastLearn/campaign_fastlearn/xyz/valid.xyz",
+  "valid_xyz_sha256": "8345c8dd5cccde0acfb48f7ad494de5f1f44aef4a7a9a0d8776fb6dc491b6d47",
+  "cutoff": 5.5,
+  "batch_size": 4,
+  "atomic_energies": {
+    "1": -187.6043857100553,
+    "8": -93.80219285502734
+  },
+  "lr_mix_weight": 1.0,
+  "n_frames": 80,
+  "n_atoms": 192,
+  "split_check_vs_deepmd": {
+    "nframes_cace": 80,
+    "nframes_deepmd": 80,
+    "natoms": 192,
+    "energy_from_frame_objects": "unavailable (RuntimeError: Atoms object has no calculator.)",
+    "max_dpos_a": 5.000000413701855e-09,
+    "max_dcell_a": 0.0,
+    "geometry_match": true
+  },
+  "mechanism": {
+    "e_lr_mean_ev_per_frame": 9.432928085327148,
+    "e_lr_std_ev_per_frame": 0.31338340044021606,
+    "f_lr_rms_ev_per_a": 0.19310429692268372,
+    "f_lr_over_f_tot": 0.2362944406975624,
+    "e_self_ev_per_frame": 327.8339538574219,
+    "f_self_rms_ev_per_a": 0.8586943745613098,
+    "f_self_over_f_tot": 1.0507519004009946,
+    "q_out_channels": 1,
+    "q_mean": -0.11420484632253647,
+    "net_charge_mean_per_frame": -21.927330017089844,
+    "sum_q2_mean_per_frame": 5163.2568359375,
+    "ewald_params": [
+      {
+        "norm_factor": 1.0,
+        "sigma": 1.0,
+        "dl": 2,
+        "remove_self_interaction": false
+      }
+    ],
+    "self_term_ev_per_frame": 327.8339497759966,
+    "self_over_e_lr": 34.754207611083984
+  },
+  "metrics": {
+    "cace-sea-lr_model-4": {
+      "e_rmse": 0.00043164132512174547,
+      "e_mae": 0.00035628280602395535,
+      "e_r2": 0.9823583960533142,
+      "f_rmse": 0.03985954076051712,
+      "f_mae": 0.030626434832811356,
+      "f_r2": 0.9976224899291992,
+      "rmse": 0.00043164132512174547,
+      "bias": -6.603797373827547e-05,
+      "spread": 0.0004265597090125084,
+      "bias2_over_rmse2": 0.023406767654281034
+    }
+  }
+}

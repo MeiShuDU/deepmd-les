@@ -1,0 +1,36 @@
+{
+  "recorded_utc": "2026-09-20T09:22:39+00:00",
+  "model": "../cace-lr-fit-datarepo/BingqingCheng-cace-lr-fit-0211150/fit-water-timing/fit-water-mp0-sr/best_model.pth",
+  "model_sha256": "020dd981f4f44c934a9f27ac848f6b7086965eb127e18c13de4d19a2900de85a",
+  "cace_provenance": {
+    "imported_from": "/root/app/cace-ts/cace/__init__.py",
+    "version": null,
+    "checkout": "/root/app/cace-ts",
+    "commit": "6256b8e1f586f2f6bed2003688b7c54eb1ff3f2d",
+    "dirty": true
+  },
+  "lr_mix_weight": null,
+  "valid_split": "water/valid/set.000",
+  "n_frames": 159,
+  "n_atoms": 192,
+  "targets_agree_with_split": true,
+  "e_target_peratom_rms_ev": 0.07430707585063864,
+  "f_target_rms_ev_per_a": 2.11046512080324,
+  "lr_energy_ev_per_frame": null,
+  "mechanism": null,
+  "arm_defs": {
+    "cace_timing_sr": "CACE_energy / CACE_forces (short range only; this checkpoint has no long-range head)"
+  },
+  "metrics": {
+    "cace_timing_sr": {
+      "e_rmse": 0.001532698102798445,
+      "e_mae": 0.0008935556803786681,
+      "e_r2": 0.9995745457196715,
+      "f_rmse": 0.07214665473063939,
+      "f_mae": 0.04186937214754954,
+      "f_r2": 0.998831372665967,
+      "e_rmse_pct_of_target": 2.0626543101753234,
+      "f_rmse_pct_of_target": 3.4185191699913275
+    }
+  }
+}

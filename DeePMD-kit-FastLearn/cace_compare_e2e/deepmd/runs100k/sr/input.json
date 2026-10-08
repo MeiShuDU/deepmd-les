@@ -1,0 +1,71 @@
+{
+  "model": {
+    "type": "standard",
+    "type_map": [
+      "O",
+      "H"
+    ],
+    "descriptor": {
+      "type": "se_a",
+      "sel": [
+        39,
+        73
+      ],
+      "rcut_smth": 0.5,
+      "rcut": 5.5,
+      "neuron": [
+        10,
+        20,
+        40
+      ],
+      "axis_neuron": 8,
+      "resnet_dt": false,
+      "seed": 1
+    },
+    "fitting_net": {
+      "type": "ener",
+      "neuron": [
+        64,
+        64,
+        64
+      ],
+      "resnet_dt": true,
+      "seed": 1
+    }
+  },
+  "learning_rate": {
+    "type": "exp",
+    "decay_steps": 100000,
+    "start_lr": 0.001,
+    "stop_lr": 3.51e-08
+  },
+  "loss": {
+    "type": "ener",
+    "start_pref_e": 1.0,
+    "limit_pref_e": 1.0,
+    "start_pref_f": 1000.0,
+    "limit_pref_f": 1000.0,
+    "start_pref_v": 0.0,
+    "limit_pref_v": 0.0
+  },
+  "training": {
+    "training_data": {
+      "systems": [
+        "/root/app/deepmd-les/deepmd-les/DeePMD-kit-FastLearn/cace_compare_e2e/water/train"
+      ],
+      "batch_size": 4
+    },
+    "validation_data": {
+      "systems": [
+        "/root/app/deepmd-les/deepmd-les/DeePMD-kit-FastLearn/cace_compare_e2e/water/valid"
+      ],
+      "batch_size": 4,
+      "numb_btch": 3
+    },
+    "numb_steps": 100000,
+    "seed": 10,
+    "disp_file": "lcurve.out",
+    "disp_freq": 1000,
+    "save_freq": 5000
+  }
+}

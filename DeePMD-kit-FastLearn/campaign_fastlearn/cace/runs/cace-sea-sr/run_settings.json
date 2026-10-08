@@ -1,0 +1,168 @@
+{
+  "recorded_utc": "2026-09-23T15:55:30+00:00",
+  "arm": "sea-sr",
+  "descriptor": "deepmd se_a (DeepmdSeAInput)",
+  "cace_provenance": {
+    "imported_from": "/root/app/cace-ts/cace/__init__.py",
+    "version": null,
+    "requested_root": "/root/app/cace-ts"
+  },
+  "train_xyz": "/root/app/deepmd-les/deepmd-les/DeePMD-kit-FastLearn/campaign_fastlearn/xyz/train.xyz",
+  "train_sha256": "4e6bffc8457c31bd43c5a10d450d292fb15c0d1bf8e66a94edbd8a9f40f92d11",
+  "valid_xyz": "/root/app/deepmd-les/deepmd-les/DeePMD-kit-FastLearn/campaign_fastlearn/xyz/valid.xyz",
+  "valid_sha256": "8345c8dd5cccde0acfb48f7ad494de5f1f44aef4a7a9a0d8776fb6dc491b6d47",
+  "n_train_frames": 320,
+  "n_valid_frames": 80,
+  "batch_size": {
+    "train": 2,
+    "valid": 4
+  },
+  "steps_per_epoch": 160,
+  "total_steps": 80000,
+  "phases": [
+    {
+      "energy_weight": 0.1,
+      "epochs": 200,
+      "steps": 32000,
+      "ckpt": "model.pth"
+    },
+    {
+      "energy_weight": 1.0,
+      "epochs": 100,
+      "steps": 16000,
+      "ckpt": "model-2.pth"
+    },
+    {
+      "energy_weight": 10.0,
+      "epochs": 100,
+      "steps": 16000,
+      "ckpt": "model-3.pth"
+    },
+    {
+      "energy_weight": 1000.0,
+      "epochs": 100,
+      "steps": 16000,
+      "ckpt": "model-4.pth"
+    }
+  ],
+  "cutoff": 5.5,
+  "atomic_energies": {
+    "1": -187.6043857100553,
+    "8": -93.80219285502734
+  },
+  "optimizer": {
+    "lr": 0.01,
+    "betas": [
+      0.99,
+      0.999
+    ]
+  },
+  "scheduler": {
+    "cls": "StepLR",
+    "step_size": 20,
+    "gamma": 0.5
+  },
+  "max_grad_norm": 10,
+  "warmup_steps": 5,
+  "ema": false,
+  "dtype": "float32",
+  "force_weight": 1000.0,
+  "n_trainable_params": 79178,
+  "data_key": {
+    "energy": "E_total",
+    "forces": "force"
+  },
+  "seed": 10,
+  "seed_note": "the cace-sr/cace-lr arms were run unseeded; these arms fix the draw so a result can be attributed to the descriptor",
+  "device": "cuda",
+  "smoke": false,
+  "se_a": {
+    "rcut": 5.5,
+    "rcut_smth": 0.5,
+    "sel": [
+      39,
+      73
+    ],
+    "neuron": [
+      25,
+      50,
+      100
+    ],
+    "axis_neuron": 16,
+    "resnet_dt": false,
+    "seed": 1,
+    "type_one_side": false,
+    "type_map": [
+      "O",
+      "H"
+    ],
+    "dim_out": 1600,
+    "nsel": 112,
+    "n_embed_nets": 4
+  },
+  "se_a_stats": {
+    "mean_abs_max": 0.052223136663652206,
+    "stddev_mean": 0.10011521718486033,
+    "sha256_12": "c7dc05e4dfee",
+    "source": "deepmd EnvMatStatSe over every train frame (no sampling)"
+  },
+  "head_n_in": 1600,
+  "armed_vs": "cace-sr",
+  "terms_tsv": "/root/app/deepmd-les/deepmd-les/DeePMD-kit-FastLearn/campaign_fastlearn/cace/runs/cace-sea-sr/sea_terms.tsv",
+  "term_columns": [
+    "global_epoch",
+    "phase",
+    "block",
+    "block_epoch",
+    "val_e_sr_mean",
+    "val_e_sr_rms",
+    "val_e_lr_mean",
+    "val_e_lr_std",
+    "val_e_lr_rms",
+    "val_q_mean",
+    "val_q_rms",
+    "val_q_max_abs",
+    "val_net_charge",
+    "val_sum_q2",
+    "val_f_sr_rms",
+    "val_f_lr_rms",
+    "val_f_tot_rms",
+    "val_f_lr_over_f_tot"
+  ],
+  "checkpoint_format": "sea-state-dict-1",
+  "checkpoint_note": "best_model.pth and model-*.pth hold a state dict plus a rebuild recipe, not cace's whole-module pickle (a deepmd network is not picklable); load them with sea_seam.load_sea_checkpoint",
+  "rebuild": {
+    "format": "sea-state-dict-1",
+    "arm": "sr",
+    "se_a_block": {
+      "rcut": 5.5,
+      "rcut_smth": 0.5,
+      "sel": [
+        39,
+        73
+      ],
+      "neuron": [
+        25,
+        50,
+        100
+      ],
+      "axis_neuron": 16,
+      "resnet_dt": false,
+      "seed": 1,
+      "type_one_side": false
+    },
+    "type_map": [
+      "O",
+      "H"
+    ],
+    "dim_out": 1600,
+    "nsel": 112,
+    "n_embed_nets": 4,
+    "seed": 10,
+    "cace_provenance": {
+      "imported_from": "/root/app/cace-ts/cace/__init__.py",
+      "version": null,
+      "requested_root": "/root/app/cace-ts"
+    }
+  }
+}

@@ -1,0 +1,104 @@
+{
+  "arm": "deepmd-les-cace-sched",
+  "replicate": "B",
+  "host": "cpod-1vg1a4d7wa0n",
+  "device": "gpu",
+  "precision": "float32",
+  "smoke": false,
+  "started": "2026-10-07T01:14:09+00:00",
+  "ended": "2026-10-07T07:05:29+00:00",
+  "blocks": [
+    {
+      "n": 1,
+      "num_steps": 18000,
+      "seconds": 1664.79,
+      "s_per_batch": 0.092489,
+      "reported_s_per_batch": 0.0917,
+      "started": "2026-10-07T01:14:09+00:00",
+      "ended": "2026-10-07T01:41:53+00:00",
+      "returncode": 0,
+      "ok": true
+    },
+    {
+      "n": 2,
+      "num_steps": 18000,
+      "seconds": 1683.83,
+      "s_per_batch": 0.093546,
+      "reported_s_per_batch": 0.0929,
+      "started": "2026-10-07T01:41:53+00:00",
+      "ended": "2026-10-07T02:09:57+00:00",
+      "returncode": 0,
+      "ok": true
+    },
+    {
+      "n": 3,
+      "num_steps": 18000,
+      "seconds": 1710.07,
+      "s_per_batch": 0.095004,
+      "reported_s_per_batch": 0.0943,
+      "started": "2026-10-07T02:09:57+00:00",
+      "ended": "2026-10-07T02:38:27+00:00",
+      "returncode": 0,
+      "ok": true
+    },
+    {
+      "n": 4,
+      "num_steps": 18000,
+      "seconds": 1692.6,
+      "s_per_batch": 0.094033,
+      "reported_s_per_batch": 0.0933,
+      "started": "2026-10-07T02:38:27+00:00",
+      "ended": "2026-10-07T03:06:40+00:00",
+      "returncode": 0,
+      "ok": true
+    },
+    {
+      "n": 5,
+      "num_steps": 18000,
+      "seconds": 1672.88,
+      "s_per_batch": 0.092938,
+      "reported_s_per_batch": 0.0922,
+      "started": "2026-10-07T03:06:40+00:00",
+      "ended": "2026-10-07T03:34:33+00:00",
+      "returncode": 0,
+      "ok": true
+    },
+    {
+      "n": 6,
+      "num_steps": 45000,
+      "seconds": 4179.21,
+      "s_per_batch": 0.092871,
+      "reported_s_per_batch": 0.0925,
+      "started": "2026-10-07T03:34:33+00:00",
+      "ended": "2026-10-07T04:44:12+00:00",
+      "returncode": 0,
+      "ok": true
+    },
+    {
+      "n": 7,
+      "num_steps": 45000,
+      "seconds": 4238.11,
+      "s_per_batch": 0.09418,
+      "reported_s_per_batch": 0.0939,
+      "started": "2026-10-07T04:44:12+00:00",
+      "ended": "2026-10-07T05:54:50+00:00",
+      "returncode": 0,
+      "ok": true
+    },
+    {
+      "n": 8,
+      "num_steps": 45000,
+      "seconds": 4238.81,
+      "s_per_batch": 0.094196,
+      "reported_s_per_batch": 0.0939,
+      "started": "2026-10-07T05:54:50+00:00",
+      "ended": "2026-10-07T07:05:29+00:00",
+      "returncode": 0,
+      "ok": true
+    }
+  ],
+  "total_seconds": 21080.3,
+  "total_steps": 225000,
+  "s_per_batch": 0.09369,
+  "aborted_at": null
+}

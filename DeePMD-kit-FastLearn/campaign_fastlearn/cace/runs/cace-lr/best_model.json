@@ -1,0 +1,65 @@
+{
+  "recorded_utc": "2026-09-21T03:19:08+00:00",
+  "arm": "lr",
+  "tag": "cace-lr_best_model",
+  "model": "cace/runs/cace-lr/best_model.pth",
+  "model_sha256": "89ce656303c92979997af81cd04324698b26114c24506c7382f38b6257636317",
+  "cace_root": "/root/app/cace-ts",
+  "valid_xyz": "/root/app/deepmd-les/deepmd-les/DeePMD-kit-FastLearn/campaign_fastlearn/xyz/valid.xyz",
+  "valid_xyz_sha256": "8345c8dd5cccde0acfb48f7ad494de5f1f44aef4a7a9a0d8776fb6dc491b6d47",
+  "cutoff": 5.5,
+  "batch_size": 4,
+  "atomic_energies": {
+    "1": -187.6043857100553,
+    "8": -93.80219285502734
+  },
+  "lr_mix_weight": 1.0,
+  "n_frames": 80,
+  "n_atoms": 192,
+  "split_check_vs_deepmd": {
+    "nframes_cace": 80,
+    "nframes_deepmd": 80,
+    "natoms": 192,
+    "energy_from_frame_objects": "unavailable (RuntimeError: Atoms object has no calculator.)",
+    "max_dpos_a": 5.000000413701855e-09,
+    "max_dcell_a": 0.0,
+    "geometry_match": true
+  },
+  "mechanism": {
+    "e_lr_mean_ev_per_frame": 2.5336363315582275,
+    "e_lr_std_ev_per_frame": 0.09445767104625702,
+    "f_lr_rms_ev_per_a": 0.07655646651983261,
+    "f_lr_over_f_tot": 0.09367963475569713,
+    "e_self_ev_per_frame": 77.97335052490234,
+    "f_self_rms_ev_per_a": 0.48505645990371704,
+    "f_self_over_f_tot": 0.5935476657337635,
+    "q_out_channels": 1,
+    "q_mean": 0.03598640859127045,
+    "net_charge_mean_per_frame": 6.909388065338135,
+    "sum_q2_mean_per_frame": 1228.050048828125,
+    "ewald_params": [
+      {
+        "norm_factor": 1.0,
+        "sigma": 1.0,
+        "dl": 2,
+        "remove_self_interaction": false
+      }
+    ],
+    "self_term_ev_per_frame": 77.97336270931982,
+    "self_over_e_lr": 30.775279998779297
+  },
+  "metrics": {
+    "cace-lr_best_model": {
+      "e_rmse": 0.00018484944303054363,
+      "e_mae": 0.00014855663175694644,
+      "e_r2": 0.996764600276947,
+      "f_rmse": 0.01921691931784153,
+      "f_mae": 0.014792392030358315,
+      "f_r2": 0.9994474053382874,
+      "rmse": 0.00018484944303054363,
+      "bias": -1.7275422123930184e-06,
+      "spread": 0.0001848413812695071,
+      "bias2_over_rmse2": 8.734157991870792e-05
+    }
+  }
+}

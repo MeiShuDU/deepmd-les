@@ -1,0 +1,29 @@
+tail window: last 70 logged validation points = last 31500 steps of each arm's schedule
+rmse_f is comparable across families; rmse_e/atom is a mean ABSOLUTE error on the deepmd side and a pooled RMSE on the sea side (see the docstring)
+
+arm                                     window  rmse_e/atom    rmse_f  drift_e  drift_f
+---------------------------------------------------------------------------------------
+deepmd-les-cace-sched_sA      193950-225000  1.316571e-04   0.04234    0.996    1.000
+deepmd-les-cace-sched_sB      193950-225000  1.286429e-04   0.04144    0.996    0.998
+deepmd-les_sA                 193950-225000  1.659571e-04   0.04763    1.013    0.998
+deepmd-les_sB                 193950-225000  1.418000e-04   0.04340    1.006    0.997
+deepmd_sA                     148950-180000  1.808571e-04   0.05017    1.380    1.002
+deepmd_sB                     148950-180000  1.655429e-04   0.04828    1.402    1.004
+sea-lr_sA                     193950-225000  1.405857e-04   0.03892    1.030    0.999
+sea-lr_sB                     193950-225000  1.488000e-04   0.03797    1.030    0.999
+sea-sr_sA                     193950-225000  1.427143e-04   0.04304    1.023    0.999
+sea-sr_sB                     193950-225000  1.598000e-04   0.04368    1.017    0.999
+
+replicate means (the number to quote for an arm):
+  deepmd                     rmse_e/atom 1.732000e-04  rmse_f   0.04923   (A/B spread 1.09x / 1.04x)
+  deepmd-les                 rmse_e/atom 1.538786e-04  rmse_f   0.04551   (A/B spread 1.17x / 1.10x)
+  deepmd-les-cace-sched      rmse_e/atom 1.301500e-04  rmse_f   0.04189   (A/B spread 1.02x / 1.02x)
+  sea-sr                     rmse_e/atom 1.512571e-04  rmse_f   0.04336   (A/B spread 1.12x / 1.01x)
+  sea-lr                     rmse_e/atom 1.446929e-04  rmse_f   0.03845   (A/B spread 1.06x / 1.02x)
+
+pairwise ratios (B/A; < 1 means the first arm is better). 'disjoint' is whether the two replicates' windows do not overlap at all,
+which at n=2 is the only significance statement available and a weak one:
+  setting effect         deepmd-les-cace-sched / deepmd-les: force 0.9204  energy 0.8458   disjoint F/E: yes/yes
+  implementation effect  deepmd-les-cace-sched / sea-lr: force 1.0896  energy (not comparable across families, see docstring)   disjoint F/E: yes/n/a
+  LR payoff, cace        sea-sr / sea-lr: force 1.1277  energy 1.0454   disjoint F/E: yes/no
+  LR payoff, deepmd      deepmd / deepmd-les: force 1.0816  energy 1.1256   disjoint F/E: yes/no  [energy window of deepmd still descending: first/last quarter 1.40]

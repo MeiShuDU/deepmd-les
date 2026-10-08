@@ -1,0 +1,74 @@
+{
+  "recorded_utc": "2026-09-20T18:26:57+00:00",
+  "arm": "lr",
+  "cace_provenance": {
+    "imported_from": "/root/app/cace-ts/cace/__init__.py",
+    "version": null,
+    "requested_root": "/root/app/cace-ts"
+  },
+  "train_xyz": "/root/app/deepmd-les/deepmd-les/DeePMD-kit-FastLearn/campaign_fastlearn/xyz/train.xyz",
+  "train_sha256": "4e6bffc8457c31bd43c5a10d450d292fb15c0d1bf8e66a94edbd8a9f40f92d11",
+  "valid_xyz": "/root/app/deepmd-les/deepmd-les/DeePMD-kit-FastLearn/campaign_fastlearn/xyz/valid.xyz",
+  "valid_sha256": "8345c8dd5cccde0acfb48f7ad494de5f1f44aef4a7a9a0d8776fb6dc491b6d47",
+  "n_train_frames": 320,
+  "n_valid_frames": 80,
+  "batch_size": {
+    "train": 2,
+    "valid": 4
+  },
+  "steps_per_epoch": 160,
+  "total_steps": 80000,
+  "phases": [
+    {
+      "energy_weight": 0.1,
+      "epochs": 200,
+      "steps": 32000,
+      "ckpt": "model.pth"
+    },
+    {
+      "energy_weight": 1.0,
+      "epochs": 100,
+      "steps": 16000,
+      "ckpt": "model-2.pth"
+    },
+    {
+      "energy_weight": 10.0,
+      "epochs": 100,
+      "steps": 16000,
+      "ckpt": "model-3.pth"
+    },
+    {
+      "energy_weight": 1000.0,
+      "epochs": 100,
+      "steps": 16000,
+      "ckpt": "model-4.pth"
+    }
+  ],
+  "cutoff": 5.5,
+  "atomic_energies": {
+    "1": -187.6043857100553,
+    "8": -93.80219285502734
+  },
+  "optimizer": {
+    "lr": 0.01,
+    "betas": [
+      0.99,
+      0.999
+    ]
+  },
+  "scheduler": {
+    "cls": "StepLR",
+    "step_size": 20,
+    "gamma": 0.5
+  },
+  "max_grad_norm": 10,
+  "warmup_steps": 5,
+  "ema": false,
+  "dtype": "float32",
+  "force_weight": 1000.0,
+  "n_trainable_params": 2610,
+  "data_key": {
+    "energy": "E_total",
+    "forces": "force"
+  }
+}

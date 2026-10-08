@@ -1,0 +1,104 @@
+{
+  "model": {
+    "type": "deepmd_cace",
+    "arm": "sr",
+    "type_map": ["O", "H"],
+    "descriptor": {
+      "type": "se_a",
+      "rcut": 5.5,
+      "rcut_smth": 0.5,
+      "sel": [43, 84],
+      "neuron": [25, 50, 100],
+      "axis_neuron": 16,
+      "resnet_dt": false,
+      "type_one_side": false,
+      "seed": 1
+    },
+    "fitting_net": {
+      "n_layers": 3,
+      "n_hidden": [32, 16],
+      "add_linear_nn": true,
+      "use_batchnorm": false
+    },
+    "long_range": {
+      "enabled": false,
+      "combine_potentials": true,
+      "weight": 0.02,
+      "charge_net": {
+        "n_layers": 3,
+        "n_hidden": [24, 12],
+        "n_out": 4,
+        "bias": false
+      },
+      "ewald": {
+        "dl": 2.0,
+        "sigma": 1.0,
+        "remove_self_interaction": false
+      }
+    }
+  },
+  "loss": {
+    "energy_weight": 0.01,
+    "force_weight": 1000.0
+  },
+  "training": {
+    "training_data": {
+      "systems": ["../../../data/water-interface/train"],
+      "batch_size": 1
+    },
+    "validation_data": {
+      "systems": ["../../../data/water-interface/valid"],
+      "batch_size": 1
+    },
+    "optimizer": {
+      "type": "adam",
+      "lr": 0.01,
+      "betas": [0.99, 0.999]
+    },
+    "scheduler": {
+      "type": "step",
+      "step_size": 20,
+      "gamma": 0.5
+    },
+    "blocks": [
+      {
+        "energy_weight": 0.01,
+        "repeat": 5,
+        "epochs": 40,
+        "fresh_task": true,
+        "checkpoint": "water-model.pth"
+      },
+      {
+        "energy_weight": 1.0,
+        "repeat": 1,
+        "epochs": 100,
+        "fresh_task": false,
+        "checkpoint": "water-model-2.pth"
+      },
+      {
+        "energy_weight": 10.0,
+        "repeat": 1,
+        "epochs": 100,
+        "fresh_task": false,
+        "checkpoint": "water-model-3.pth"
+      },
+      {
+        "energy_weight": 1000.0,
+        "repeat": 1,
+        "epochs": 100,
+        "fresh_task": false,
+        "checkpoint": "water-model-4.pth"
+      }
+    ],
+    "seed": 2,
+    "device": "cuda",
+    "max_grad_norm": 10.0,
+    "warmup_steps": 5,
+    "ema": false,
+    "ema_start": 10,
+    "disp_freq": 1,
+    "save_freq": 10,
+    "screen_nan": false,
+    "output_dir": "."
+  }
+}

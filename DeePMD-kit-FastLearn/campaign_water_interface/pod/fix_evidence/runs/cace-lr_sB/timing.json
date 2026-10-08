@@ -1,0 +1,34 @@
+{
+  "arm": "cace-lr",
+  "replicate": "B",
+  "host": "cpod-1vg1a4d7wa0n",
+  "device": "gpu",
+  "smoke": true,
+  "started": "2026-09-25T11:55:03+00:00",
+  "ended": "2026-09-25T11:57:53+00:00",
+  "blocks": [
+    {
+      "n": 1,
+      "num_steps": 450,
+      "seconds": 148.76,
+      "s_per_batch": 0.330582,
+      "reported_s_per_batch": null,
+      "started": null,
+      "ended": null,
+      "returncode": 0,
+      "ok": true,
+      "label": "phase0.0",
+      "epochs": 1
+    }
+  ],
+  "total_seconds": 148.76,
+  "total_steps": 450,
+  "s_per_batch": 0.330578,
+  "aborted_at": null,
+  "scheduled_blocks": 8,
+  "replicate_seed": 2,
+  "cace_resume": false,
+  "restarted_from_partial": true,
+  "max_gpu_mb": 3483.4,
+  "steps_per_epoch": 450
+}

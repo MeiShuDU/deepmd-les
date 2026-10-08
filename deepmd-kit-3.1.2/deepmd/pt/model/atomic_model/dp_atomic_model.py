@@ -226,6 +226,7 @@ class DPAtomicModel(BaseAtomicModel):
         fparam: Optional[torch.Tensor] = None,
         aparam: Optional[torch.Tensor] = None,
         comm_dict: Optional[dict[str, torch.Tensor]] = None,
+        desc_out: Optional[list[torch.Tensor]] = None,
     ) -> dict[str, torch.Tensor]:
         """Return atomic prediction.
 
@@ -243,6 +244,10 @@ class DPAtomicModel(BaseAtomicModel):
             frame parameter. nf x ndf
         aparam
             atomic parameter. nf x nloc x nda
+        desc_out
+            可选的输出通道: 非 None 时, 本次前向算出的 descriptor (未 detach,
+            保留计算图) 会被追加到该列表中。调用方需保证传入的列表为空, 以便
+            用 desc_out[-1] 取回本次的描述符。默认 None, 行为与不带该参数完全一致。
 
         Returns
         -------
@@ -262,6 +267,11 @@ class DPAtomicModel(BaseAtomicModel):
             comm_dict=comm_dict,
         )
         assert descriptor is not None
+        # 复用通道: 把描述符本身 (而非 detach 后的副本) 交给调用方, 使依赖它的
+        # 复型通道 (hybrid_ener 的长程 Ewald) 与短程通道共用同一次描述符计算,
+        # 且其坐标依赖 (d desc / d coord) 仍保留在计算图中。
+        if desc_out is not None:
+            desc_out.append(descriptor)
         if self.enable_eval_descriptor_hook:
             self.eval_descriptor_list.append(descriptor.detach())
         # energy, force
