@@ -153,18 +153,29 @@ It takes these options.
 | key | type | default | meaning |
 | --- | --- | --- | --- |
 | `enabled` | bool | `false` | replace the kernel with the equalizing one |
-| `regularization_weight` | float | `0.1` | the trust-region weight `w`; must be positive |
+| `regularization_weight` | float | `0.1` | fixed inverse hardness `2w`, or the positive initial hardness scale for a learned head; fixed `w=0` is allowed only when the constrained objective is convex |
 | `total_charge` | float | `0.0` | the value the summed charge is held at |
 | `total_charge_key` | string | `system_charge` | a batch entry that, when present, supplies the total charge per frame and overrides `total_charge` |
+| `learnable_kappa` | bool | `false` | predict positive atomwise inverse hardness from local descriptor features using a separate 16-unit SiLU head initialized at `2w` |
+| `systems` | array | absent | fixed one-based group definitions and CONP/CONQ constraints selected per DeepMD system; requires one charge channel |
+| `slab_axis` | `0`, `1`, `2` or `null` | `null` | optional neutral-slab Yeh-Berkowitz correction along a Cartesian-aligned periodic-cell axis |
 
-The step is the constrained minimization
+Without `systems`, the legacy step is the constrained minimization
 
 ```text
 min_q  1/2 q^T A q + w ||q - q_r||^2    subject to    1^T q = Q
 ```
 
-where `A` is the Ewald Coulomb matrix built through the same kernel, `w` is
-`regularization_weight`, and `Q` is the total charge.
+Here `A` is the Ewald Coulomb matrix built through the same kernel, `w` is `regularization_weight`, and `Q` is the total charge.
+The generalized solve replaces `2w I` by `K_inv = diag(kappa_inv)` and uses all active constraints `C q = r`:
+
+```text
+[ A + K_inv   C^T ] [ q      ] = [ K_inv q_r ]
+[ C           0   ] [ lambda ]   [ r         ]
+```
+
+With `slab_axis` set, the corrected Coulomb matrix is used consistently in the solve, potential constraints, and reported energy.
+
 Two limits bracket it:
 
 * `w -> infinity` pins the charges to the proposal, and the module falls back to
@@ -172,9 +183,13 @@ Two limits bracket it:
   imposes.
   The proposal carries a net charge, so the limit is `q_r` shifted uniformly by
   `(sum q_r - Q) / (n_atoms * n_out)` rather than `q_r` itself.
-* `w -> 0` keeps the constraint alone, so the charges relax to the
-  minimum-Coulomb-energy distribution at the requested total charge.
+* `w -> 0` removes the hardness penalty; a unique minimum then exists only if
+  the Coulomb matrix has positive curvature on the feasible charge subspace.
+  The solver checks this condition and rejects an indefinite objective.
 
+The Ewald adapter supplies `compute_coulomb_matrix`, using the kernel's native matrix API when available and a compatible dense contraction for CACE versions without it.
+The Ewald operator is assembled once per frame and reused by the constraint rows,
+KKT solve, and Coulomb energy evaluation.
 The solve is a single linear system per frame and it is differentiable, so the
 long-range force is exact autograd of the reported energy rather than a finite
 difference.
@@ -182,9 +197,69 @@ Three keys come out: `q_eq` (the equalized charges, `[n_atoms, n_out]`), `q`
 (the proposal, left untouched and still available to the trainer and to
 scoring), and `ewald_potential` (the long-range energy, same shape and meaning
 as the plain kernel's, so nothing downstream changes).
-The module holds no parameters or buffers, so enabling it does not change the
-state dict: a plain long-range checkpoint loads into the equalizing
-architecture and back, and only the energy those same charges produce changes.
+With fixed hardness, the module adds no trainable parameters.
+With learned hardness, its atomwise feature head becomes part of the state dict;
+the resulting checkpoint must be reloaded with the same equalization configuration.
+
+For fixed electrodes, list each DeepMD `training_data` and `validation_data` system
+under `systems` using either its `system` path or `system_aliases` for splits that
+share the same atom order and fixed groups.
+Paths, including `group_definition`, are resolved relative to the input JSON file.
+Group JSON maps group names to nonempty, unique, **one-based** atom indices;
+`all` is reserved for the entire system.
+The `electrode_mode` is `CONP` or `CONQ`, and applies only to
+`electrode_constraints` within that system.
+The training loader attaches a `charge_eq_system` integer to each frame, indexing the configured `systems` array.
+Inference batches must supply the same metadata and preserve the selected system's atom ordering.
+The optional `global_constraints` are CONQ and may include `group: "all"` for
+neutralization in either mode.
+CONP fixes the difference in the *mean* electrostatic potentials of two
+disjoint electrode groups using the same Coulomb matrix as the energy.
+`delta_V` is expressed in the units of `A q`, with the CACE kernel normalization.
+It must not be interpreted as a voltage in volts without a calibrated charge and energy convention.
+CONQ fixes the sum of charges in a named group.
+The network emits `q_eq` and retains the proposal `q` unchanged.
+The regularization term is part of the charge solve but **not** part of the
+reported long-range energy, matching the accepted design.
+External potential is deferred until its DFT sign, gauge, and units are fixed.
+
+An excerpt for two datasets with different electrode modes is:
+
+```json
+"charge_eq_latent": {
+  "enabled": true,
+  "regularization_weight": 0.1,
+  "learnable_kappa": true,
+  "systems": [
+    {
+      "system": "./data_1/train",
+      "system_aliases": ["./data_1/valid"],
+      "group_definition": "./data_1/groups.json",
+      "electrode_mode": "CONP",
+      "electrode_constraints": [
+        {"type": "CONP", "group1": "electrodeA", "group2": "electrodeB", "delta_V": 4.0}
+      ],
+      "global_constraints": [{"type": "CONQ", "group": "all", "total_charge": 0.0}]
+    },
+    {
+      "system": "./data_2/train",
+      "system_aliases": ["./data_2/valid"],
+      "group_definition": "./data_2/groups.json",
+      "electrode_mode": "CONQ",
+      "electrode_constraints": [
+        {"type": "CONQ", "group": "electrodeA", "total_charge": 0.0},
+        {"type": "CONQ", "group": "electrodeB", "total_charge": 0.0}
+      ],
+      "global_constraints": [{"type": "CONQ", "group": "all", "total_charge": 0.0}]
+    }
+  ]
+}
+```
+
+The second example requires electrolyte atoms outside both electrode groups;
+otherwise the last row is redundant and the configuration is rejected.
+The `systems` option is currently limited to a single charge channel and
+per-frame dense `N x N` Coulomb/KKT matrices; benchmark large cells before HPC use.
 
 `regularization_weight` is a real coupling rather than a near-no-op, and the
 default was picked from the measured sweep in `check_charge_eq_latent.py`: on a
@@ -197,12 +272,12 @@ moves them by 0.9% and reports `174.2` eV.
 | combination | result |
 | --- | --- |
 | `charge_eq_latent.enabled` with `long_range.enabled: false` | rejected: the equalization lives in the long-range branch |
-| `charge_eq_latent.regularization_weight <= 0` | rejected; `A + 2wI` is what makes the solve well posed |
+| `charge_eq_latent.regularization_weight < 0`, or zero with `learnable_kappa` | rejected; a fixed zero value is allowed only if the constrained Hessian is positive definite |
 | `ewald.exponent != 1` | rejected: this is the electrostatic kernel |
 | `ewald` carrying `external_field`, `external_field_direction`, `charge_neutral_lambda`, or `compute_field`, with the equalization on | rejected rather than ignored: those options belong to the kernel's own forward path, which the equalizing module never calls |
 | unknown key under `charge_eq_latent` or `ewald` (with the equalization on) | rejected at configuration time |
 | `charge_eq_latent` with any `combine_potentials` x `share_descriptor` layout | supported; all four build and run |
-| a checkpoint trained with the equalization off, loaded into the equalizing architecture | loads strictly, no state-dict change, since the module adds no parameters |
+| a checkpoint trained with the equalization off, loaded into fixed-hardness equalization | loads strictly; learned hardness adds parameters and requires its own checkpoint |
 
 Two behaviours of the shared kernel are worth knowing before reading long-range
 numbers out of a model.
@@ -245,4 +320,10 @@ Run the numerical checks over it, on real campaign frames, with:
 
 ```bash
 PYTHONPATH=desc_bridging python desc_bridging/check_charge_eq_latent.py
+```
+
+For local synthetic mixed-mode coverage (including a one-epoch CPU smoke run):
+
+```bash
+CUDA_VISIBLE_DEVICES="" PYTHONPATH=desc_bridging python desc_bridging/check_charge_eq_fixed_groups.py
 ```

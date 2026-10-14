@@ -2,8 +2,8 @@
 
 ``ChargeEqLatent`` sits exactly where ``cace.modules.ewald.EwaldPotential`` sits
 in the long-range branch: it reads the latent charges ``q`` produced by the
-charge head, rebuilds the Ewald Coulomb matrix ``A`` through CACE's own kernel,
-and replaces those charges by the equilibrium solution of
+charge head, obtains the Ewald Coulomb operator ``A`` using the same kernel
+convention, and replaces those charges by the equilibrium solution of
 
     min_q  1/2 q^T A q + w ||q - q_r||^2     subject to  1^T q = Q_total
 
@@ -22,21 +22,22 @@ Two limits bracket the behaviour:
   uniformly by ``(sum q_r - Q) / (n_atoms * n_channels)`` - a shift independent of
   ``w``, which is why the limit is not ``q_r`` itself. ``check_charge_eq_latent.py``
   asserts against that shifted set rather than against ``q_r``.
-* ``w -> 0``: the constraint alone survives and the charges relax to the
-  minimum-Coulomb-energy distribution at fixed total charge. ``A`` is positive
-  definite for a periodic cell once self-interaction is removed, so this limit is
-  well posed for every ``w > 0``; ``w <= 0`` is rejected.
+* ``w -> 0``: a minimum exists only if the Coulomb objective has positive
+  curvature along feasible charge directions. Removing the self term can make
+  that objective indefinite. The solver checks curvature rather than assuming
+  that nonnegative hardness guarantees convexity.
 
 Relationship to ``cace.modules.charge_eq.ChargeEq``
 ---------------------------------------------------
 That module is the classic Electronegativity Equalization solver: its charges come
 from per-element ``chi``/``J`` parameters, no latent charge is involved, and it
 carries a trainable ``J_raw`` hardness table. Here the network's latent charges
-are the input and there are no per-element parameters at all, so the equalized
-charges remain a function of the geometry alone. The Coulomb matrix is built the
-same way in both: ``EwaldPotential`` evaluated on ``q = eye(N)`` with
-``compute_field=True`` returns ``A_ij`` directly, the field at atom ``i`` due to a
-unit charge at ``j``.
+are the input. Optional inverse hardness is predicted from local invariant
+features, so the equalized charges remain functions of geometry and boundary
+conditions. The Ewald adapter supplies ``compute_coulomb_matrix`` so the solver
+can reuse the operator for constraints, equalization, and energy.
+Its compatibility contraction agrees with ``EwaldPotential`` evaluated on
+``q = eye(N)`` with ``compute_field=True``, without that call's large intermediate.
 
 One place this module deliberately does not reproduce the kernel
 -----------------------------------------------------------------
@@ -54,122 +55,22 @@ gradient is the force it emits. The two agree exactly whenever
 import torch
 import torch.nn as nn
 
-from cace.modules.ewald import EwaldPotential
+from .ewald_matrix import EwaldMatrixPotential, coulomb_matrix
 
 __all__ = ["ChargeEqLatent", "coulomb_matrix", "equalize_charges"]
 
 
-def coulomb_matrix(kernel, r, cell):
-    """``A_ij``: the potential at ``i`` from a unit charge at ``j``, one frame.
+def equalize_charges(A_mat, q_ref, weight, total_charge=0.0, constraint_matrix=None,
+                     constraint_values=None, kappa_inv=None):
+    """Minimize the quadratic with ``C q = values``, returning charges and duals.
 
-    The kernel hands this back when it is called with ``q = eye(n)`` and
-    ``compute_field=True``, but that materializes an ``[n, n, n_k]`` intermediate
-    (and an ``[n, n, n]`` one in real space): twenty terabytes at the 1566-atom
-    campaign slab. Both branches below are the same sums with the identity
-    contracted out analytically, which costs ``O(n^2)`` memory instead. Nothing
-    about the physics changes - ``check_charge_eq_latent.py`` pins every entry of
-    this matrix against the kernel's own field output on a system small enough
-    for that path to run.
-
-    The reciprocal-space branch mirrors ``EwaldPotential.compute_potential_triclinic``
-    line for line - same ``Nk`` from ``dl``, same ``k_sq`` cutoff, same
-    hemisphere reduction with its factor of 2, same ``2 kfac`` field scaling, same
-    self-interaction correction - and the real-space branch mirrors
-    ``compute_potential_realspace``. Reading the grid off the kernel's own
-    attributes (``dl``, ``sigma``, ``k_sq_max``, ``twopi``) keeps the two in step
-    for everything except the summation itself.
+    Fixed hardness is ``2*weight`` for compatibility with the original penalty.
+    For multiple legacy channels, constraints act on their collective charge.
+    Validation is detached; the solve, including geometry-dependent constraint
+    rows and hardness, remains differentiable through force-loss gradients.
     """
-    n_atoms = r.shape[0]
-    kernel_type = r.dtype
-    cell_now = cell.reshape(3, 3)
-    diagonal = cell_now.diagonal(dim1=-2, dim2=-1)
-    if bool((diagonal.abs() < 1e-6).all()):
-        difference = r.unsqueeze(0) - r.unsqueeze(1)
-        distance = difference.norm(dim=-1)
-        convergence = torch.special.erf(distance / kernel.sigma / (2.0 ** 0.5))
-        A_mat = convergence / (distance + 1e-6) / kernel.twopi
-        if not kernel.remove_self_interaction:
-            A_mat = A_mat + torch.diag(
-                torch.full((n_atoms,), 2.0 / (kernel.sigma * kernel.twopi ** 1.5),
-                           device=r.device, dtype=kernel_type)
-            )
-        return A_mat
-    if bool((diagonal > 0).all()):
-        return _reciprocal_coulomb_matrix(kernel, r, cell_now)
-    raise ValueError("Either all box dimensions must be positive or aperiodic box must be provided.")
-
-
-def _reciprocal_coulomb_matrix(kernel, r, cell):
-    """The reciprocal-space half of :func:`coulomb_matrix`, in closed form.
-
-    ``A_ij = sum_m 2 factors_m kfac_m / V cos(k_m . (r_i - r_j))``, assembled as
-    two ``[n, n_k] @ [n_k, n]`` products through the angle-addition identity rather
-    than by ever forming the ``[n, n, n_k]`` tensor. The ``2`` is the kernel's own
-    field scaling (``sk_field = 2 kfac conj(S_k)``); the energy it gives back is
-    ``0.5 sum_c q_c^T A q_c``, which is exactly ``compute_potential_triclinic``'s
-    ``pot`` for those charges.
-    """
-    # the kernel does this matmul in float32 unconditionally, which is what makes
-    # its own triclinic path float32-only; casting the operands explicitly keeps
-    # the float32 result bit-identical and lets float64 run at all
-    reciprocal = 2.0 * torch.pi * torch.linalg.inv(cell).T
-    n_grid = [max(1, int(norm.item() / kernel.dl)) for norm in torch.norm(cell, dim=1)]
-    axes = [torch.arange(-n, n + 1, device=r.device) for n in n_grid]
-    nvec = torch.stack(torch.meshgrid(*axes, indexing="ij"), dim=-1).reshape(-1, 3)
-    kvec = (nvec.to(torch.float32) @ reciprocal.to(torch.float32)).to(reciprocal.dtype)
-
-    k_sq = kvec.pow(2).sum(dim=1)
-    keep = (k_sq > 0) & (k_sq <= kernel.k_sq_max)
-    kvec, k_sq, nvec = kvec[keep], k_sq[keep], nvec[keep]
-
-    first_non_zero = torch.argmax((nvec != 0).to(torch.int), dim=1)
-    sign = nvec.gather(1, first_non_zero.unsqueeze(1)).squeeze(1)
-    hemisphere = (sign > 0) | (nvec == 0).all(dim=1)
-    kvec, k_sq, nvec = kvec[hemisphere], k_sq[hemisphere], nvec[hemisphere]
-    factors = torch.where((nvec == 0).all(dim=1), 1.0, 2.0)
-
-    kfac = torch.exp(-kernel.sigma_sq_half * k_sq) / k_sq
-    weight = 2.0 * factors * kfac / torch.det(cell)
-
-    angles = r @ kvec.T
-    cosine, sine = torch.cos(angles), torch.sin(angles)
-    A_mat = (cosine * weight) @ cosine.T + (sine * weight) @ sine.T
-    if kernel.remove_self_interaction:
-        A_mat = A_mat - torch.diag(
-            torch.full((r.shape[0],), 2.0 / (kernel.sigma * kernel.twopi ** 1.5),
-                       device=r.device, dtype=r.dtype)
-        )
-    return A_mat
-
-
-def equalize_charges(A_mat, q_ref, weight, total_charge=0.0):
-    """The constrained equalization of one frame, by a KKT linear solve.
-
-    ``A_mat`` is the ``[n, n]`` Coulomb matrix, ``q_ref`` the ``[n, k]`` latent
-    charges it should stay near (``k`` = the charge head's ``n_out``), ``weight``
-    the trust-region strength ``w`` and ``total_charge`` the value the summed
-    charge ``sum_c 1^T q_c`` is held at. Returns ``(q_eq, multiplier)``.
-
-    Stationarity of ``0.5 sum_c q_c^T A q_c + w sum_c ||q_c - q_r,c||^2`` under
-    the single constraint ``sum_c 1^T q_c = Q`` is
-
-        (A + 2w I) q_c = 2w q_r,c - multiplier * 1
-
-    so one factorization of the shared ``A + 2w I`` serves every channel: the
-    right-hand side is stacked as ``[2w q_ref | 1]`` and ``torch.linalg.solve``
-    returns ``x_c`` and ``u = (A + 2w I)^{-1} 1`` together, leaving
-    ``q_c = x_c - multiplier * u`` with the multiplier fixed by the constraint.
-    Channels therefore stay independent except through that one shift, which is
-    what makes the returned charges a function of the geometry and of the total
-    charge alone - there is no per-element hardness parameter anywhere.
-
-    ``A`` is positive definite once self-interaction is removed, so ``A + 2w I``
-    is positive definite for every ``w > 0``; ``w <= 0`` is rejected rather than
-    silently regularized. The solve is differentiable, so the long-range force is
-    exact autograd rather than a finite difference.
-    """
-    if weight <= 0:
-        raise ValueError(f"regularization_weight must be positive, got {weight}")
+    if kappa_inv is None and (not torch.isfinite(torch.tensor(weight)) or weight < 0):
+        raise ValueError(f"regularization_weight must be finite and nonnegative, got {weight}")
     n_atoms, n_channels = q_ref.shape
     device, dtype = A_mat.device, A_mat.dtype
     q_ref = q_ref.to(dtype=dtype)
@@ -177,22 +78,73 @@ def equalize_charges(A_mat, q_ref, weight, total_charge=0.0):
         total_charge = torch.as_tensor(float(total_charge), device=device, dtype=dtype)
     total_charge = total_charge.reshape([]).to(device=device, dtype=dtype)
 
-    # cat rather than writing into a preallocated buffer: an index assignment into
-    # a tensor built from an autograd-connected block is an in-place op on a view,
-    # and the graph it would have to keep is easier to state as concatenations.
-    matrix = A_mat + 2.0 * weight * torch.eye(n_atoms, device=device, dtype=dtype)
-    ones = torch.ones(n_atoms, 1, device=device, dtype=dtype)
-    solution = torch.linalg.solve(matrix, torch.cat([2.0 * weight * q_ref, ones], dim=1))
-    near_proposal, unit_shift = solution[:, :n_channels], solution[:, n_channels]
-    multiplier = (near_proposal.sum() - total_charge) / (n_channels * unit_shift.sum())
-    return near_proposal - multiplier * unit_shift.unsqueeze(1), multiplier
+    hardness = (torch.full((n_atoms,), 2.0 * weight, device=device, dtype=dtype)
+                if kappa_inv is None else kappa_inv.to(device=device, dtype=dtype).reshape(n_atoms))
+    if not torch.isfinite(hardness).all() or (hardness < 0).any():
+        raise ValueError("kappa_inv must be finite and nonnegative")
+    # The quadratic objective is defined by the symmetric part of A.
+    A_mat = (A_mat + A_mat.T) * 0.5
+    matrix = A_mat + torch.diag(hardness)
+    if constraint_matrix is None:
+        constraint_matrix = torch.ones(1, n_atoms, device=device, dtype=dtype)
+        constraint_values = total_charge.reshape(1)
+    else:
+        constraint_matrix = constraint_matrix.to(device=device, dtype=dtype)
+        constraint_values = torch.as_tensor(constraint_values, device=device, dtype=dtype).reshape(-1)
+        if constraint_matrix.ndim != 2 or constraint_matrix.shape[1] != n_atoms:
+            raise ValueError("constraint_matrix must have shape [n_constraints, n_atoms]")
+        if constraint_matrix.shape[0] != constraint_values.numel():
+            raise ValueError("constraint_values must match constraint_matrix rows")
+        if constraint_matrix.shape[0] == 0:
+            raise ValueError("at least one active charge constraint is required")
+    if not all(torch.isfinite(x).all() for x in (matrix, q_ref, constraint_matrix, constraint_values)):
+        raise ValueError("charge matrix, proposal, constraints and targets must be finite")
+    # Normalize rows to avoid potential and charge units skewing the KKT solve.
+    row_norm = constraint_matrix.norm(dim=1)
+    if (row_norm == 0).any():
+        raise ValueError("active charge constraints are linearly dependent (zero row)")
+    constraint_matrix = constraint_matrix / row_norm[:, None]
+    if torch.linalg.matrix_rank(constraint_matrix.detach()) != constraint_matrix.shape[0]:
+        raise ValueError("active charge constraints are linearly dependent or ill-conditioned")
+    values = constraint_values / row_norm
+    m = constraint_matrix.shape[0]
+    with torch.no_grad():
+        _, info = torch.linalg.cholesky_ex(matrix)
+    if int(info) == 0:
+        # One n-by-n factorization serves all channels and constraint rows.
+        result = torch.linalg.solve(matrix, torch.cat([
+            hardness[:, None] * q_ref, constraint_matrix.T], dim=1))
+        unconstrained, response = result[:, :n_channels], result[:, n_channels:]
+        dual = torch.linalg.solve(n_channels * constraint_matrix @ response,
+                                 constraint_matrix @ unconstrained.sum(dim=1) - values)
+        q_eq = unconstrained - (response @ dual)[:, None]
+        return q_eq, dual / row_norm
+    # A full saddle-point solve also supports a singular H whose constrained
+    # subspace has a unique minimum (including the zero-hardness limit).
+    h = torch.block_diag(*([matrix] * n_channels))
+    c = constraint_matrix.repeat(1, n_channels)
+    m = c.shape[0]
+    kkt = torch.cat([torch.cat([h, c.T], dim=1),
+                     torch.cat([c, h.new_zeros(m, m)], dim=1)], dim=0)
+    # Nonnegative hardness alone does not ensure convexity of a self-subtracted
+    # Coulomb kernel. Check curvature only along feasible charge directions.
+    with torch.no_grad():
+        _, _, vh = torch.linalg.svd(c, full_matrices=True)
+        null = vh[m:].T
+        if null.shape[1]:
+            projected = null.T @ h @ null
+            if torch.linalg.eigvalsh(projected).min() <= 0:
+                raise ValueError("charge objective is not strictly convex on the feasible subspace")
+    rhs = torch.cat([(hardness[:, None] * q_ref).T.reshape(-1), values])
+    solution = torch.linalg.solve(kkt, rhs)
+    return solution[:n_atoms * n_channels].reshape(n_channels, n_atoms).T, solution[n_atoms * n_channels:] / row_norm
 
 
 class ChargeEqLatent(nn.Module):
     """Drop-in replacement for ``EwaldPotential`` that equalizes latent charges.
 
     Kernel options (``dl``, ``sigma``, ``exponent``, ``remove_self_interaction``)
-    are forwarded to a private ``EwaldPotential``, which is used only as a kernel:
+    are forwarded to a private ``EwaldMatrixPotential`` adapter:
     its ``forward`` is never called, so ``external_field`` and
     ``charge_neutral_lambda`` have no effect here and are rejected by the
     configuration validator rather than silently ignored.
@@ -203,9 +155,8 @@ class ChargeEqLatent(nn.Module):
     mode). ``feature_key`` is read and left untouched, so the raw latent charges
     stay available to the trainer and to scoring.
 
-    The module holds no parameters or buffers, so a plain long-range checkpoint
-    loads into it and back without a state-dict change; only the energy the same
-    charges produce changes.
+    Fixed hardness adds no parameters. Learned hardness uses a separate local
+    feature head, saved with the model state dictionary.
     """
 
     def __init__(
@@ -220,6 +171,11 @@ class ChargeEqLatent(nn.Module):
         regularization_weight: float = 0.1,
         total_charge: float = 0.0,
         total_charge_key: str = "system_charge",
+        constraints_key: str = "charge_eq_constraints",
+        systems=None,
+        learnable_kappa=False,
+        kappa_in=None,
+        slab_axis=None,
         remove_self_interaction: bool = True,
     ):
         super().__init__()
@@ -230,20 +186,36 @@ class ChargeEqLatent(nn.Module):
         self.regularization_weight = float(regularization_weight)
         self.total_charge = float(total_charge)
         self.total_charge_key = total_charge_key
+        self.constraints_key = constraints_key
+        self.systems = systems or []
+        self.slab_axis = slab_axis
+        self.kappa_head = None
+        if learnable_kappa:
+            if kappa_in is None or regularization_weight <= 0:
+                raise ValueError("learnable_kappa requires descriptor feature width and positive initial regularization_weight")
+            self.kappa_head = nn.Sequential(nn.Linear(kappa_in, 16), nn.SiLU(), nn.Linear(16, 1))
+            nn.init.zeros_(self.kappa_head[-1].weight)
+            initial = torch.tensor(2.0 * regularization_weight, dtype=torch.float64)
+            nn.init.constant_(self.kappa_head[-1].bias,
+                              float(initial + torch.log(-torch.expm1(-initial))))
         self.exponent = exponent
         self.model_outputs = [output_key, ewald_key]
+        if self.kappa_head is not None:
+            self.model_outputs.append("kappa_inv")
         self.required_derivatives = ["cell"]
 
         if exponent != 1:
             raise ValueError("charge_eq_latent implements the electrostatic kernel, exponent must be 1")
-        if self.regularization_weight <= 0:
-            raise ValueError("regularization_weight must be positive")
+        if not torch.isfinite(torch.tensor(self.regularization_weight)) or self.regularization_weight < 0:
+            raise ValueError("regularization_weight must be finite and nonnegative")
+        if slab_axis is not None and (isinstance(slab_axis, bool) or slab_axis not in (0, 1, 2)):
+            raise ValueError("slab_axis must be 0, 1, 2 or null")
 
         # compute_field=False here on purpose: the parent NeuralNetworkPotential
         # collects model_outputs from every submodule, and compute_field=True would
         # add '<feature>_field' to that list and make extract_outputs raise for a
-        # key this module never writes. The field is requested per call instead.
-        self.ep = EwaldPotential(
+        # key this module never writes. The matrix API supplies the operator.
+        self.ep = EwaldMatrixPotential(
             dl=dl,
             sigma=sigma,
             feature_key=feature_key,
@@ -255,16 +227,85 @@ class ChargeEqLatent(nn.Module):
 
     def _coulomb_matrix(self, r, cell):
         """``A`` for one frame, from the kernel held on this module."""
-        return coulomb_matrix(self.ep, r, cell)
+        matrix = self.ep.compute_coulomb_matrix(r, cell)
+        if self.slab_axis is not None:
+            cell = cell.reshape(3, 3)
+            volume = torch.linalg.det(cell).abs()
+            if not torch.isfinite(volume) or volume <= 0:
+                raise ValueError("slab correction requires a finite periodic cell")
+            axis = self.slab_axis
+            others = [i for i in range(3) if i != axis]
+            if (cell[axis, others].abs() > 1e-10).any() or (cell[others, axis].abs() > 1e-10).any():
+                raise ValueError("slab_axis must be aligned with a Cartesian cell axis")
+            # CACE's 1/(2*pi*r) prefactor rescales 4*pi/V to 2/V.
+            z = r[:, axis]
+            matrix = matrix + (2.0 / volume) * torch.outer(z, z)
+        return matrix
 
     def _frame_totals(self, data, n_frames):
         """The constrained total charge of each frame, from the batch or a scalar."""
         if self.total_charge_key in data and data[self.total_charge_key] is not None:
             values = data[self.total_charge_key]
             if torch.is_tensor(values):
-                return values.to(data["positions"].device).reshape(-1)
+                values = values.to(data["positions"].device).reshape(-1)
+                if values.numel() != n_frames:
+                    raise ValueError("total_charge_key requires one value per frame")
+                return values
             return torch.full((n_frames,), float(values), device=data["positions"].device)
         return torch.full((n_frames,), self.total_charge, device=data["positions"].device)
+
+    def _frame_constraints(self, data, frame, mask, q_ref, A_mat, total):
+        spec = data.get(self.constraints_key)
+        if self.systems:
+            ids = data.get("charge_eq_system")
+            if ids is None:
+                raise ValueError("per-system equalization requires charge_eq_system metadata")
+            system_id = int(ids.reshape(-1)[frame])
+            if not 0 <= system_id < len(self.systems):
+                raise ValueError("charge_eq_system is outside the configured systems")
+            spec = self.systems[system_id]
+            if int(mask.sum()) != spec["n_atoms"]:
+                raise ValueError("atom count differs from fixed-group system definition")
+        if spec is None:
+            return None, total
+        if isinstance(spec, (list, tuple)):
+            spec = spec[frame]
+        if not isinstance(spec, dict):
+            raise ValueError(f"{self.constraints_key} entries must be mappings")
+        rows, values = [], []
+        n_atoms = int(mask.sum())
+        for item in spec.get("constraints", []):
+            kind = str(item.get("type", "")).upper()
+            group = item.get("indices")
+            if group is None:
+                raise ValueError("constraint entries require zero-based 'indices'")
+            indices = torch.as_tensor(group, device=mask.device, dtype=torch.long)
+            if indices.numel() == 0 or int(indices.min()) < 0 or int(indices.max()) >= n_atoms:
+                raise ValueError("constraint indices are out of range")
+            row = torch.zeros(n_atoms, device=A_mat.device, dtype=A_mat.dtype)
+            if kind == "CONQ":
+                row.scatter_(0, indices, 1.0)
+                value = item.get("total_charge")
+            elif kind == "CONP":
+                group2 = item.get("indices2")
+                if group2 is None:
+                    raise ValueError("CONP requires 'indices2'")
+                indices2 = torch.as_tensor(group2, device=mask.device, dtype=torch.long)
+                if indices2.numel() == 0 or int(indices2.min()) < 0 or int(indices2.max()) >= n_atoms:
+                    raise ValueError("CONP indices2 are out of range")
+                row.scatter_add_(0, indices, torch.full((indices.numel(),), 1.0 / indices.numel(), device=A_mat.device, dtype=A_mat.dtype))
+                row.scatter_add_(0, indices2, torch.full((indices2.numel(),), -1.0 / indices2.numel(), device=A_mat.device, dtype=A_mat.dtype))
+                row = row @ A_mat
+                value = item.get("delta_V")
+            else:
+                raise ValueError(f"unsupported charge constraint type: {kind}")
+            if value is None or not torch.isfinite(torch.as_tensor(value)):
+                raise ValueError(f"missing or non-finite target for {kind}")
+            rows.append(row)
+            values.append(float(value))
+        if not rows:
+            return None, total
+        return torch.stack(rows), torch.as_tensor(values, device=A_mat.device, dtype=A_mat.dtype)
 
     def forward(self, data, **kwargs):
         if data.get("batch") is None:
@@ -283,6 +324,15 @@ class ChargeEqLatent(nn.Module):
             q_ref = q_ref.unsqueeze(1)
         assert r.shape[1] == 3, "r dimension error"
         assert r.shape[0] == q_ref.shape[0], "q dimension error"
+        if (self.systems or self.kappa_head is not None) and q_ref.shape[1] != 1:
+            raise ValueError("fixed-group and learnable-kappa modes require one charge channel")
+        hardness = None
+        if self.kappa_head is not None:
+            if data.get("node_feats") is None:
+                raise ValueError("learnable_kappa requires node_feats")
+            features = data["node_feats"].reshape(r.shape[0], -1).to(self.kappa_head[0].weight.dtype)
+            hardness = torch.nn.functional.softplus(self.kappa_head(features)).reshape(-1)
+            data["kappa_inv"] = hardness
 
         frames = torch.unique(batch_now)
         totals = self._frame_totals(data, len(frames))
@@ -291,9 +341,24 @@ class ChargeEqLatent(nn.Module):
         for position, frame in enumerate(frames):
             mask = batch_now == frame
             A_mat = self._coulomb_matrix(r[mask], cells[frame])
-            q_eq, _ = equalize_charges(
-                A_mat, q_ref[mask], self.regularization_weight, totals[position]
+            constraint_matrix, constraint_values = self._frame_constraints(
+                data, int(frame), mask, q_ref[mask], A_mat, totals[position]
             )
+            if self.slab_axis is not None:
+                c = constraint_matrix
+                target = constraint_values
+                neutral = (float(totals[position]) == 0.0 if c is None else bool(
+                    ((c == 1).all(dim=1) & (target == 0)).any()))
+                if not neutral:
+                    raise ValueError("slab correction requires explicit global neutrality")
+            try:
+                q_eq, _ = equalize_charges(
+                    A_mat, q_ref[mask], self.regularization_weight, totals[position],
+                    constraint_matrix, constraint_values,
+                    None if hardness is None else hardness[mask],
+                )
+            except ValueError as error:
+                raise ValueError(f"charge_eq_latent frame {int(frame)}: {error}") from error
             equalized.append(q_eq)
             # 0.5 sum_c q_c^T A q_c, which is exactly what the kernel's own
             # reciprocal- and real-space functions report for these charges; shaped

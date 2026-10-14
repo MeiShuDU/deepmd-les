@@ -24,16 +24,17 @@ LONG_RANGE_KERNEL_KEYS = (
     "output_key",
     "aggregation_mode",
 )
-CHARGE_EQ_KEYS = ("enabled", "regularization_weight", "total_charge", "total_charge_key")
+CHARGE_EQ_KEYS = ("enabled", "regularization_weight", "total_charge", "total_charge_key",
+                  "systems", "learnable_kappa", "slab_axis")
 
 
-def build_long_range_kernel(long_range):
+def build_long_range_kernel(long_range, input_width=None):
     """The module that turns latent charges into the long-range energy.
 
     Plain ``EwaldPotential`` by default. With ``long_range.charge_eq_latent``
     enabled, ``ChargeEqLatent`` takes its place: same kernel, same emitted
     ``ewald_potential``, plus a constrained equalization of the charges first.
-    Both are parameter-free, so a checkpoint of either loads into the other.
+    Learned hardness, when enabled, adds a local feature head.
     """
     options = dict(long_range.get("ewald", {}))
     options.setdefault("feature_key", "q")
@@ -64,6 +65,10 @@ def build_long_range_kernel(long_range):
         regularization_weight=float(equalization.get("regularization_weight", 0.1)),
         total_charge=float(equalization.get("total_charge", 0.0)),
         total_charge_key=equalization.get("total_charge_key", "system_charge"),
+        systems=equalization.get("systems"),
+        learnable_kappa=equalization.get("learnable_kappa", False),
+        kappa_in=input_width,
+        slab_axis=equalization.get("slab_axis"),
     )
 
 
@@ -132,7 +137,12 @@ def build_model(cace_model_config, descriptor, device):
             add_linear_nn=True,
             bias=bool(charge.get("bias", False)),
         )
-        ewald = build_long_range_kernel(long_range)
+        equalization = long_range.get("charge_eq_latent", {})
+        if (equalization.get("enabled", False) and
+                (equalization.get("systems") or equalization.get("learnable_kappa", False)) and
+                int(charge.get("n_out", 1)) != 1):
+            raise ValueError("fixed-group and learned-hardness equalization require charge_net.n_out=1")
+        ewald = build_long_range_kernel(long_range, input_width)
 
         if combine_potentials:
             if share_descriptor:

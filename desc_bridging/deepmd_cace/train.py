@@ -178,6 +178,8 @@ def run(config_path, check_only=False, smoke=False):
 
     descriptor_config = dict(model_config["descriptor"])
     cutoff = float(descriptor_config["rcut"])
+    equalization = model_config.get("long_range", {}).get("charge_eq_latent", {})
+    charge_eq_systems = equalization.get("systems") if equalization.get("enabled", False) else None
     train_loader, train_stats = load_split(
         training_config["training_data"]["systems"],
         model_config["type_map"],
@@ -185,6 +187,7 @@ def run(config_path, check_only=False, smoke=False):
         int(training_config["training_data"].get("batch_size", 1)),
         shuffle=True,
         atomic_energies=config.get("atomic_energies"),
+        charge_eq_systems=charge_eq_systems,
     )
     valid_loader, _ = load_split(
         training_config["validation_data"]["systems"],
@@ -194,6 +197,7 @@ def run(config_path, check_only=False, smoke=False):
         shuffle=False,
         collect_stats=False,
         atomic_energies=config.get("atomic_energies"),
+        charge_eq_systems=charge_eq_systems,
     )
     train_probe = _assert_targets(train_loader, "train")
     _assert_targets(valid_loader, "valid")
