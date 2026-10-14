@@ -22,3 +22,14 @@ env/
 # their run dirs. (The checkpoints already tracked under 01.train stay tracked.)
 *.ckpt.pt
 *.ckpt-*.pt
+
+# This published tree carries code and documentation, not data. The campaign
+# frames, checkpoints and analysis dumps live next to their scripts in the
+# working copy but are deliberately not published here.
+*.npy
+*.npz
+*.pt
+*.pth
+*.xyz
+*.tar
+*.tgz
